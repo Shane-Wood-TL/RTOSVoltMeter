@@ -94,16 +94,16 @@ const osThreadAttr_t spiTask_attributes = {
   .stack_size = sizeof(spiTaskBuffer),
   .priority = (osPriority_t) osPriorityNormal,
 };
-/* Definitions for adcOutputQueue */
-osMessageQueueId_t adcOutputQueueHandle;
-uint8_t adcOutputQueueBuffer[ 16 * sizeof( uint16_t ) ];
-osStaticMessageQDef_t adcOutputQueueControlBlock;
-const osMessageQueueAttr_t adcOutputQueue_attributes = {
-  .name = "adcOutputQueue",
-  .cb_mem = &adcOutputQueueControlBlock,
-  .cb_size = sizeof(adcOutputQueueControlBlock),
-  .mq_mem = &adcOutputQueueBuffer,
-  .mq_size = sizeof(adcOutputQueueBuffer)
+/* Definitions for adcOutputQueue0 */
+osMessageQueueId_t adcOutputQueue0Handle;
+uint8_t adcOutputQueueBuffer0[ 16 * sizeof( uint16_t ) ];
+osStaticMessageQDef_t adcOutputQueueControlBlock0;
+const osMessageQueueAttr_t adcOutputQueue0_attributes = {
+  .name = "adcOutputQueue0",
+  .cb_mem = &adcOutputQueueControlBlock0,
+  .cb_size = sizeof(adcOutputQueueControlBlock0),
+  .mq_mem = &adcOutputQueueBuffer0,
+  .mq_size = sizeof(adcOutputQueueBuffer0)
 };
 /* Definitions for enecryptOutput */
 osMessageQueueId_t enecryptOutputHandle;
@@ -115,6 +115,17 @@ const osMessageQueueAttr_t enecryptOutput_attributes = {
   .cb_size = sizeof(enecryptOutputControlBlock),
   .mq_mem = &enecryptOutputBuffer,
   .mq_size = sizeof(enecryptOutputBuffer)
+};
+/* Definitions for adcOutputQueue1 */
+osMessageQueueId_t adcOutputQueue1Handle;
+uint8_t adcOutputQueue1Buffer[ 16 * sizeof( uint16_t ) ];
+osStaticMessageQDef_t adcOutputQueue1ControlBlock;
+const osMessageQueueAttr_t adcOutputQueue1_attributes = {
+  .name = "adcOutputQueue1",
+  .cb_mem = &adcOutputQueue1ControlBlock,
+  .cb_size = sizeof(adcOutputQueue1ControlBlock),
+  .mq_mem = &adcOutputQueue1Buffer,
+  .mq_size = sizeof(adcOutputQueue1Buffer)
 };
 /* Definitions for adcLock */
 osMutexId_t adcLockHandle;
@@ -259,11 +270,14 @@ int main(void)
   /* USER CODE END RTOS_TIMERS */
 
   /* Create the queue(s) */
-  /* creation of adcOutputQueue */
-  adcOutputQueueHandle = osMessageQueueNew (16, sizeof(uint16_t), &adcOutputQueue_attributes);
+  /* creation of adcOutputQueue0 */
+  adcOutputQueue0Handle = osMessageQueueNew (16, sizeof(uint16_t), &adcOutputQueue0_attributes);
 
   /* creation of enecryptOutput */
   enecryptOutputHandle = osMessageQueueNew (16, sizeof(uint8_t), &enecryptOutput_attributes);
+
+  /* creation of adcOutputQueue1 */
+  adcOutputQueue1Handle = osMessageQueueNew (16, sizeof(uint16_t), &adcOutputQueue1_attributes);
 
   /* USER CODE BEGIN RTOS_QUEUES */
   /* add queues, ... */
