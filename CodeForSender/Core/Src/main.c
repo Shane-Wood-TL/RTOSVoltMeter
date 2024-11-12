@@ -127,11 +127,11 @@ const osMessageQueueAttr_t adcOutputQueue1_attributes = {
   .mq_mem = &adcOutputQueue1Buffer,
   .mq_size = sizeof(adcOutputQueue1Buffer)
 };
-/* Definitions for adcLock */
-osMutexId_t adcLockHandle;
+/* Definitions for adcLock0 */
+osMutexId_t adcLock0Handle;
 osStaticMutexDef_t adcLockControlBlock;
-const osMutexAttr_t adcLock_attributes = {
-  .name = "adcLock",
+const osMutexAttr_t adcLock0_attributes = {
+  .name = "adcLock0",
   .cb_mem = &adcLockControlBlock,
   .cb_size = sizeof(adcLockControlBlock),
 };
@@ -150,6 +150,14 @@ const osMutexAttr_t spiMutex_attributes = {
   .name = "spiMutex",
   .cb_mem = &spiMutexControlBlock,
   .cb_size = sizeof(spiMutexControlBlock),
+};
+/* Definitions for adcLock1 */
+osMutexId_t adcLock1Handle;
+osStaticMutexDef_t adcLock1ControlBlock;
+const osMutexAttr_t adcLock1_attributes = {
+  .name = "adcLock1",
+  .cb_mem = &adcLock1ControlBlock,
+  .cb_size = sizeof(adcLock1ControlBlock),
 };
 /* Definitions for adcSemaphore */
 osSemaphoreId_t adcSemaphoreHandle;
@@ -238,14 +246,17 @@ int main(void)
   /* Init scheduler */
   osKernelInitialize();
   /* Create the mutex(es) */
-  /* creation of adcLock */
-  adcLockHandle = osMutexNew(&adcLock_attributes);
+  /* creation of adcLock0 */
+  adcLock0Handle = osMutexNew(&adcLock0_attributes);
 
   /* creation of enecryptLock */
   enecryptLockHandle = osMutexNew(&enecryptLock_attributes);
 
   /* creation of spiMutex */
   spiMutexHandle = osMutexNew(&spiMutex_attributes);
+
+  /* creation of adcLock1 */
+  adcLock1Handle = osMutexNew(&adcLock1_attributes);
 
   /* USER CODE BEGIN RTOS_MUTEX */
   /* add mutexes, ... */
@@ -585,9 +596,46 @@ void StartDefaultTask(void *argument)
 void StartAdc(void *argument)
 {
   /* USER CODE BEGIN StartAdc */
+	osStatus status;
+	uint32_t count = 0;
+
   /* Infinite loop */
   for(;;)
   {
+	status = osMutexAcquire(adcLock0Handle, 0);
+	if(status == osOK)
+	{
+		(void)HAL_ADC_Start(&hadc1);
+		HAL_ADC_PollForConversion(&hadc1, 0);
+		adcOutputQueueBuffer0[count] = HAL_ADC_PollForConversion(&hadc1, 0);
+		count++;
+
+		if(count == 3)
+		{
+			osMutexRelease(adcLock0Handle);
+			count = 0;
+		}
+
+	}
+	else
+	{
+		status = osMutexAcquire(adcLock1Handle, 0);
+		if(status == osOK)
+		{
+			(void)HAL_ADC_Start(&hadc1);
+			HAL_ADC_PollForConversion(&hadc1, 0);
+			adcOutputQueue1Buffer[count] = HAL_ADC_PollForConversion(&hadc1, 0);
+			count++;
+			if(count == 3)
+			{
+				osMutexRelease(adcLock1Handle);
+				count = 0;
+			}
+
+		}
+
+	}
+
     osDelay(1);
   }
   /* USER CODE END StartAdc */
