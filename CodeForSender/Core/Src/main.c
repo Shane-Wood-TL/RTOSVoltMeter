@@ -596,45 +596,30 @@ void StartDefaultTask(void *argument)
 void StartAdc(void *argument)
 {
   /* USER CODE BEGIN StartAdc */
-	osStatus status;
-	uint32_t count = 0;
 
   /* Infinite loop */
   for(;;)
   {
-	status = osMutexAcquire(adcLock0Handle, 0);
-	if(status == osOK)
-	{
-		(void)HAL_ADC_Start(&hadc1);
-		HAL_ADC_PollForConversion(&hadc1, 0);
-		adcOutputQueueBuffer0[count] = HAL_ADC_PollForConversion(&hadc1, 0);
-		count++;
+	  	osMutexAcquire(adcLock0Handle, 0);
+	  	for(uint8_t i = 0; i < 4; i++)
+	  	{
+		  (void)HAL_ADC_Start(&hadc1);
+		  HAL_ADC_PollForConversion(&hadc1, 0);
+		  adcOutputQueueBuffer0[i] = HAL_ADC_PollForConversion(&hadc1, 0);
+	  	}
 
-		if(count == 3)
-		{
-			osMutexRelease(adcLock0Handle);
-			count = 0;
-		}
+	    osMutexRelease(adcLock0Handle);
+	    osMutexAcquire(adcLock1Handle, 0);
 
-	}
-	else
-	{
-		status = osMutexAcquire(adcLock1Handle, 0);
-		if(status == osOK)
-		{
+	  	for(uint8_t i = 0; i < 4; i++)
+	  	{
 			(void)HAL_ADC_Start(&hadc1);
 			HAL_ADC_PollForConversion(&hadc1, 0);
-			adcOutputQueue1Buffer[count] = HAL_ADC_PollForConversion(&hadc1, 0);
-			count++;
-			if(count == 3)
-			{
-				osMutexRelease(adcLock1Handle);
-				count = 0;
-			}
+			adcOutputQueue1Buffer[i] = HAL_ADC_PollForConversion(&hadc1, 0);
+	  	}
 
-		}
-
-	}
+	    osMutexRelease(adcLock1Handle);
+	    osMutexAcquire(adcLock0Handle, 0);
 
     osDelay(1);
   }
