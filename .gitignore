@@ -30,3 +30,12 @@
 *.exe
 *.out
 *.app
+
+#STM32 Cube
+CodeForSender/.settings/
+CodeForSender/Release/
+CodeForSender/Debug/
+
+CodeForReceiver/.settings/
+CodeForReceiver/Release/
+CodeForReceiver/Debug/
