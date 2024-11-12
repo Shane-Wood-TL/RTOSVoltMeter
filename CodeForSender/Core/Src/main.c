@@ -18,6 +18,7 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "cmsis_os.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -25,6 +26,10 @@
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
+typedef StaticTask_t osStaticThreadDef_t;
+typedef StaticQueue_t osStaticMessageQDef_t;
+typedef StaticSemaphore_t osStaticMutexDef_t;
+typedef StaticSemaphore_t osStaticSemaphoreDef_t;
 /* USER CODE BEGIN PTD */
 
 /* USER CODE END PTD */
@@ -40,8 +45,125 @@
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
+ADC_HandleTypeDef hadc1;
+
+SPI_HandleTypeDef hspi1;
+
 UART_HandleTypeDef huart2;
 
+/* Definitions for defaultTask */
+osThreadId_t defaultTaskHandle;
+const osThreadAttr_t defaultTask_attributes = {
+  .name = "defaultTask",
+  .stack_size = 128 * 4,
+  .priority = (osPriority_t) osPriorityNormal,
+};
+/* Definitions for adc */
+osThreadId_t adcHandle;
+uint32_t adcBuffer[ 128 ];
+osStaticThreadDef_t adcControlBlock;
+const osThreadAttr_t adc_attributes = {
+  .name = "adc",
+  .cb_mem = &adcControlBlock,
+  .cb_size = sizeof(adcControlBlock),
+  .stack_mem = &adcBuffer[0],
+  .stack_size = sizeof(adcBuffer),
+  .priority = (osPriority_t) osPriorityNormal,
+};
+/* Definitions for encrypter */
+osThreadId_t encrypterHandle;
+uint32_t encrypterBuffer[ 128 ];
+osStaticThreadDef_t encrypterControlBlock;
+const osThreadAttr_t encrypter_attributes = {
+  .name = "encrypter",
+  .cb_mem = &encrypterControlBlock,
+  .cb_size = sizeof(encrypterControlBlock),
+  .stack_mem = &encrypterBuffer[0],
+  .stack_size = sizeof(encrypterBuffer),
+  .priority = (osPriority_t) osPriorityNormal,
+};
+/* Definitions for spiTask */
+osThreadId_t spiTaskHandle;
+uint32_t spiTaskBuffer[ 128 ];
+osStaticThreadDef_t spiTaskControlBlock;
+const osThreadAttr_t spiTask_attributes = {
+  .name = "spiTask",
+  .cb_mem = &spiTaskControlBlock,
+  .cb_size = sizeof(spiTaskControlBlock),
+  .stack_mem = &spiTaskBuffer[0],
+  .stack_size = sizeof(spiTaskBuffer),
+  .priority = (osPriority_t) osPriorityNormal,
+};
+/* Definitions for adcOutputQueue */
+osMessageQueueId_t adcOutputQueueHandle;
+uint8_t adcOutputQueueBuffer[ 16 * sizeof( uint16_t ) ];
+osStaticMessageQDef_t adcOutputQueueControlBlock;
+const osMessageQueueAttr_t adcOutputQueue_attributes = {
+  .name = "adcOutputQueue",
+  .cb_mem = &adcOutputQueueControlBlock,
+  .cb_size = sizeof(adcOutputQueueControlBlock),
+  .mq_mem = &adcOutputQueueBuffer,
+  .mq_size = sizeof(adcOutputQueueBuffer)
+};
+/* Definitions for enecryptOutput */
+osMessageQueueId_t enecryptOutputHandle;
+uint8_t enecryptOutputBuffer[ 16 * sizeof( uint8_t ) ];
+osStaticMessageQDef_t enecryptOutputControlBlock;
+const osMessageQueueAttr_t enecryptOutput_attributes = {
+  .name = "enecryptOutput",
+  .cb_mem = &enecryptOutputControlBlock,
+  .cb_size = sizeof(enecryptOutputControlBlock),
+  .mq_mem = &enecryptOutputBuffer,
+  .mq_size = sizeof(enecryptOutputBuffer)
+};
+/* Definitions for adcLock */
+osMutexId_t adcLockHandle;
+osStaticMutexDef_t adcLockControlBlock;
+const osMutexAttr_t adcLock_attributes = {
+  .name = "adcLock",
+  .cb_mem = &adcLockControlBlock,
+  .cb_size = sizeof(adcLockControlBlock),
+};
+/* Definitions for enecryptLock */
+osMutexId_t enecryptLockHandle;
+osStaticMutexDef_t enecryptLockControlBlock;
+const osMutexAttr_t enecryptLock_attributes = {
+  .name = "enecryptLock",
+  .cb_mem = &enecryptLockControlBlock,
+  .cb_size = sizeof(enecryptLockControlBlock),
+};
+/* Definitions for spiMutex */
+osMutexId_t spiMutexHandle;
+osStaticMutexDef_t spiMutexControlBlock;
+const osMutexAttr_t spiMutex_attributes = {
+  .name = "spiMutex",
+  .cb_mem = &spiMutexControlBlock,
+  .cb_size = sizeof(spiMutexControlBlock),
+};
+/* Definitions for adcSemaphore */
+osSemaphoreId_t adcSemaphoreHandle;
+osStaticSemaphoreDef_t adcSemaphoreControlBlock;
+const osSemaphoreAttr_t adcSemaphore_attributes = {
+  .name = "adcSemaphore",
+  .cb_mem = &adcSemaphoreControlBlock,
+  .cb_size = sizeof(adcSemaphoreControlBlock),
+};
+/* Definitions for enecryptSemaphore */
+osSemaphoreId_t enecryptSemaphoreHandle;
+osStaticSemaphoreDef_t enecryptSemaphoreControlBlock;
+const osSemaphoreAttr_t enecryptSemaphore_attributes = {
+  .name = "enecryptSemaphore",
+  .cb_mem = &enecryptSemaphoreControlBlock,
+  .cb_size = sizeof(enecryptSemaphoreControlBlock),
+};
+/* Definitions for spiSemaphore */
+osSemaphoreId_t spiSemaphoreHandle;
+osStaticSemaphoreDef_t spiSemaphoreControlBlock;
+const osSemaphoreAttr_t spiSemaphore_attributes = {
+  .name = "spiSemaphore",
+  .cb_mem = &spiSemaphoreControlBlock,
+  .cb_size = sizeof(spiSemaphoreControlBlock),
+};
 /* USER CODE BEGIN PV */
 
 /* USER CODE END PV */
@@ -50,6 +172,13 @@ UART_HandleTypeDef huart2;
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_USART2_UART_Init(void);
+static void MX_ADC1_Init(void);
+static void MX_SPI1_Init(void);
+void StartDefaultTask(void *argument);
+void StartAdc(void *argument);
+void startEncrypter(void *argument);
+void startSpi(void *argument);
+
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -89,9 +218,82 @@ int main(void)
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_USART2_UART_Init();
+  MX_ADC1_Init();
+  MX_SPI1_Init();
   /* USER CODE BEGIN 2 */
 
   /* USER CODE END 2 */
+
+  /* Init scheduler */
+  osKernelInitialize();
+  /* Create the mutex(es) */
+  /* creation of adcLock */
+  adcLockHandle = osMutexNew(&adcLock_attributes);
+
+  /* creation of enecryptLock */
+  enecryptLockHandle = osMutexNew(&enecryptLock_attributes);
+
+  /* creation of spiMutex */
+  spiMutexHandle = osMutexNew(&spiMutex_attributes);
+
+  /* USER CODE BEGIN RTOS_MUTEX */
+  /* add mutexes, ... */
+  /* USER CODE END RTOS_MUTEX */
+
+  /* Create the semaphores(s) */
+  /* creation of adcSemaphore */
+  adcSemaphoreHandle = osSemaphoreNew(1, 1, &adcSemaphore_attributes);
+
+  /* creation of enecryptSemaphore */
+  enecryptSemaphoreHandle = osSemaphoreNew(1, 0, &enecryptSemaphore_attributes);
+
+  /* creation of spiSemaphore */
+  spiSemaphoreHandle = osSemaphoreNew(1, 0, &spiSemaphore_attributes);
+
+  /* USER CODE BEGIN RTOS_SEMAPHORES */
+  /* add semaphores, ... */
+  /* USER CODE END RTOS_SEMAPHORES */
+
+  /* USER CODE BEGIN RTOS_TIMERS */
+  /* start timers, add new ones, ... */
+  /* USER CODE END RTOS_TIMERS */
+
+  /* Create the queue(s) */
+  /* creation of adcOutputQueue */
+  adcOutputQueueHandle = osMessageQueueNew (16, sizeof(uint16_t), &adcOutputQueue_attributes);
+
+  /* creation of enecryptOutput */
+  enecryptOutputHandle = osMessageQueueNew (16, sizeof(uint8_t), &enecryptOutput_attributes);
+
+  /* USER CODE BEGIN RTOS_QUEUES */
+  /* add queues, ... */
+  /* USER CODE END RTOS_QUEUES */
+
+  /* Create the thread(s) */
+  /* creation of defaultTask */
+  defaultTaskHandle = osThreadNew(StartDefaultTask, NULL, &defaultTask_attributes);
+
+  /* creation of adc */
+  adcHandle = osThreadNew(StartAdc, NULL, &adc_attributes);
+
+  /* creation of encrypter */
+  encrypterHandle = osThreadNew(startEncrypter, NULL, &encrypter_attributes);
+
+  /* creation of spiTask */
+  spiTaskHandle = osThreadNew(startSpi, NULL, &spiTask_attributes);
+
+  /* USER CODE BEGIN RTOS_THREADS */
+  /* add threads, ... */
+  /* USER CODE END RTOS_THREADS */
+
+  /* USER CODE BEGIN RTOS_EVENTS */
+  /* add events, ... */
+  /* USER CODE END RTOS_EVENTS */
+
+  /* Start scheduler */
+  osKernelStart();
+
+  /* We should never get here as control is now taken by the scheduler */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
@@ -165,6 +367,104 @@ void SystemClock_Config(void)
 }
 
 /**
+  * @brief ADC1 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_ADC1_Init(void)
+{
+
+  /* USER CODE BEGIN ADC1_Init 0 */
+
+  /* USER CODE END ADC1_Init 0 */
+
+  ADC_ChannelConfTypeDef sConfig = {0};
+
+  /* USER CODE BEGIN ADC1_Init 1 */
+
+  /* USER CODE END ADC1_Init 1 */
+
+  /** Common config
+  */
+  hadc1.Instance = ADC1;
+  hadc1.Init.ClockPrescaler = ADC_CLOCK_ASYNC_DIV1;
+  hadc1.Init.Resolution = ADC_RESOLUTION_12B;
+  hadc1.Init.DataAlign = ADC_DATAALIGN_RIGHT;
+  hadc1.Init.ScanConvMode = ADC_SCAN_DISABLE;
+  hadc1.Init.EOCSelection = ADC_EOC_SINGLE_CONV;
+  hadc1.Init.LowPowerAutoWait = DISABLE;
+  hadc1.Init.ContinuousConvMode = DISABLE;
+  hadc1.Init.NbrOfConversion = 1;
+  hadc1.Init.DiscontinuousConvMode = DISABLE;
+  hadc1.Init.ExternalTrigConv = ADC_SOFTWARE_START;
+  hadc1.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_NONE;
+  hadc1.Init.DMAContinuousRequests = DISABLE;
+  hadc1.Init.Overrun = ADC_OVR_DATA_PRESERVED;
+  hadc1.Init.OversamplingMode = DISABLE;
+  if (HAL_ADC_Init(&hadc1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /** Configure Regular Channel
+  */
+  sConfig.Channel = ADC_CHANNEL_15;
+  sConfig.Rank = ADC_REGULAR_RANK_1;
+  sConfig.SamplingTime = ADC_SAMPLETIME_2CYCLES_5;
+  sConfig.SingleDiff = ADC_SINGLE_ENDED;
+  sConfig.OffsetNumber = ADC_OFFSET_NONE;
+  sConfig.Offset = 0;
+  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN ADC1_Init 2 */
+
+  /* USER CODE END ADC1_Init 2 */
+
+}
+
+/**
+  * @brief SPI1 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_SPI1_Init(void)
+{
+
+  /* USER CODE BEGIN SPI1_Init 0 */
+
+  /* USER CODE END SPI1_Init 0 */
+
+  /* USER CODE BEGIN SPI1_Init 1 */
+
+  /* USER CODE END SPI1_Init 1 */
+  /* SPI1 parameter configuration*/
+  hspi1.Instance = SPI1;
+  hspi1.Init.Mode = SPI_MODE_MASTER;
+  hspi1.Init.Direction = SPI_DIRECTION_2LINES;
+  hspi1.Init.DataSize = SPI_DATASIZE_4BIT;
+  hspi1.Init.CLKPolarity = SPI_POLARITY_LOW;
+  hspi1.Init.CLKPhase = SPI_PHASE_1EDGE;
+  hspi1.Init.NSS = SPI_NSS_SOFT;
+  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_2;
+  hspi1.Init.FirstBit = SPI_FIRSTBIT_MSB;
+  hspi1.Init.TIMode = SPI_TIMODE_DISABLE;
+  hspi1.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
+  hspi1.Init.CRCPolynomial = 7;
+  hspi1.Init.CRCLength = SPI_CRC_LENGTH_DATASIZE;
+  hspi1.Init.NSSPMode = SPI_NSS_PULSE_ENABLE;
+  if (HAL_SPI_Init(&hspi1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN SPI1_Init 2 */
+
+  /* USER CODE END SPI1_Init 2 */
+
+}
+
+/**
   * @brief USART2 Initialization Function
   * @param None
   * @retval None
@@ -216,7 +516,17 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(LD3_GPIO_Port, LD3_Pin, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin : PA3 */
+  GPIO_InitStruct.Pin = GPIO_PIN_3;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
   /*Configure GPIO pin : LD3_Pin */
   GPIO_InitStruct.Pin = LD3_Pin;
@@ -232,6 +542,78 @@ static void MX_GPIO_Init(void)
 /* USER CODE BEGIN 4 */
 
 /* USER CODE END 4 */
+
+/* USER CODE BEGIN Header_StartDefaultTask */
+/**
+  * @brief  Function implementing the defaultTask thread.
+  * @param  argument: Not used
+  * @retval None
+  */
+/* USER CODE END Header_StartDefaultTask */
+void StartDefaultTask(void *argument)
+{
+  /* USER CODE BEGIN 5 */
+  /* Infinite loop */
+  for(;;)
+  {
+    osDelay(1);
+  }
+  /* USER CODE END 5 */
+}
+
+/* USER CODE BEGIN Header_StartAdc */
+/**
+* @brief Function implementing the adc thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_StartAdc */
+void StartAdc(void *argument)
+{
+  /* USER CODE BEGIN StartAdc */
+  /* Infinite loop */
+  for(;;)
+  {
+    osDelay(1);
+  }
+  /* USER CODE END StartAdc */
+}
+
+/* USER CODE BEGIN Header_startEncrypter */
+/**
+* @brief Function implementing the encrypter thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_startEncrypter */
+void startEncrypter(void *argument)
+{
+  /* USER CODE BEGIN startEncrypter */
+  /* Infinite loop */
+  for(;;)
+  {
+    osDelay(1);
+  }
+  /* USER CODE END startEncrypter */
+}
+
+/* USER CODE BEGIN Header_startSpi */
+/**
+* @brief Function implementing the spiTask thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_startSpi */
+void startSpi(void *argument)
+{
+  /* USER CODE BEGIN startSpi */
+  /* Infinite loop */
+  for(;;)
+  {
+    osDelay(1);
+  }
+  /* USER CODE END startSpi */
+}
 
 /**
   * @brief  This function is executed in case of error occurrence.
