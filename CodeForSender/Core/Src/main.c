@@ -615,30 +615,29 @@ void StartAdc(void *argument)
   /* Infinite loop */
   for(;;)
   {
-	osMutexAcquire(adcLock0Handle, 0);
+	osMutexAcquire(adcLock0Handle, osWaitForever);
 	for(uint8_t i = 0; i < 4; i++)
 	{
 	  (void)HAL_ADC_Start(&hadc1);
-	  HAL_ADC_PollForConversion(&hadc1, 0);
-	  adcOutputQueueBuffer0[i] = HAL_ADC_PollForConversion(&hadc1, 0);
+	  HAL_ADC_PollForConversion(&hadc1, osWaitForever);
+	  adcOutputQueueBuffer0[i] = HAL_ADC_GetValue(&hadc1);
 	}
 
 	osMutexRelease(adcLock0Handle);
-	osSemaphoreRelease(adcOutputQueue0Handle);
-	osMutexAcquire(adcLock1Handle, 0);
-	osSemaphoreAcquire(adcOutputQueue1Handle, 0);
+//	osSemaphoreRelease(adcOutputQueue0Handle);
+	osMutexAcquire(adcLock1Handle, osWaitForever);
+//	osSemaphoreAcquire(adcOutputQueue1Handle, 0);
 
 	for(uint8_t i = 0; i < 4; i++)
 	{
 		(void)HAL_ADC_Start(&hadc1);
-		HAL_ADC_PollForConversion(&hadc1, 0);
-		adcOutputQueue1Buffer[i] = HAL_ADC_PollForConversion(&hadc1, 0);
+		HAL_ADC_PollForConversion(&hadc1, osWaitForever);
+		adcOutputQueue1Buffer[i] =  HAL_ADC_GetValue(&hadc1);
 	}
 
 	osMutexRelease(adcLock1Handle);
-	osSemaphoreRelease(adcOutputQueue1Handle);
-	osMutexAcquire(adcLock0Handle, 0);
-	osSemaphoreAcquire(adcOutputQueue0Handle, 0);
+//	osSemaphoreRelease(adcOutputQueue1Handle);
+//	osSemaphoreAcquire(adcOutputQueue0Handle, 0);
 
 
   }
@@ -661,7 +660,7 @@ uint32_t k[4] = {371, 215, 11, 12}; //key
 uint32_t repackaged[2] = {0,0};
   for(;;)
   {
-		  	osMutexAcquire(adcLock1Handle, 0);
+		  	osMutexAcquire(adcLock1Handle, osWaitForever);
 		  	for(uint8_t i = 0; i < 4; i++)
 		  	{
 		  		values[i] = adcOutputQueue1Buffer[i];
@@ -682,7 +681,7 @@ uint32_t repackaged[2] = {0,0};
 		    encrypterBuffer[6] = (uint8_t)(repackaged[0] >> 8);
 		    encrypterBuffer[7] = (uint8_t)(repackaged[0] >> 0);
 
-		    osMutexAcquire(adcLock0Handle, 0);
+		    osMutexAcquire(adcLock0Handle, osWaitForever);
 
 		  	for(uint8_t i = 0; i < 4; i++)
 		  	{
@@ -721,7 +720,8 @@ void startSpi(void *argument)
   {
 	GPIOA->ODR &= ~(1<<3);
 	for(uint8_t i =0; i <8;i++){
-		LL_SPI_TransmitData8(hspi1.Instance, encrypterBuffer[i]); // Send each byte
+		//LL_SPI_TransmitData8(hspi1.Instance, encrypterBuffer[i]); // Send each byte
+		HAL_SPI_Transmit(&hspi1, encrypterBuffer[i], 8, HAL_MAX_DELAY);
 		GPIOA->ODR |= (1<<3);
 	}
   }
