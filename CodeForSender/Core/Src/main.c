@@ -22,7 +22,10 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "stm32l4xx_ll_spi.h"
+#include "stm32l4xx_ll_gpio.h"
+#include "stm32l4xx_ll_bus.h"
+#include "stm32l4xx_ll_utils.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -199,12 +202,24 @@ void startEncrypter(void *argument);
 void startSpi(void *argument);
 
 /* USER CODE BEGIN PFP */
-
+void encrypt (uint32_t *v0I,uint32_t *v1I, const uint32_t k[4]);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-
+void encrypt (uint32_t *v0I,uint32_t *v1I, const uint32_t k[4]) {
+  uint32_t v1 = *v1I, v0=*v0I;
+  uint32_t sum=0, i;   /* set up */
+  uint32_t delta=0x9E3779B9;             /* a key schedule constant */
+  uint32_t k0=k[0], k1=k[1], k2=k[2], k3=k[3];  /* cache key */
+  for (i=0; i<32; i++) {                 /* basic cycle start */
+    sum += delta;
+    v0 += ((v1<<4) + k0) ^ (v1 + sum) ^ ((v1>>5) + k1);
+    v1 += ((v0<<4) + k2) ^ (v0 + sum) ^ ((v0>>5) + k3);
+  }                       /* end cycle */
+  (*v0I)= v0;
+  (*v1I)= v1;
+}
 /* USER CODE END 0 */
 
 /**
@@ -641,10 +656,52 @@ void startEncrypter(void *argument)
 {
   /* USER CODE BEGIN startEncrypter */
   /* Infinite loop */
+uint16_t values[4] = {0,0,0,0};
+uint32_t k[4] = {371, 215, 11, 12}; //key
+uint32_t repackaged[2] = {0,0};
   for(;;)
   {
-    osDelay(1);
-  }
+		  	osMutexAcquire(adcLock1Handle, 0);
+		  	for(uint8_t i = 0; i < 4; i++)
+		  	{
+		  		values[i] = adcOutputQueue1Buffer[i];
+		  	}
+
+		    osMutexRelease(adcLock1Handle);
+
+
+		    repackaged[0]= values[0] << 16 | values[1];
+		    repackaged[1]= values[2] << 16 | values[3];
+		    encrypt(&repackaged[0],&repackaged[1],k);
+		    encrypterBuffer[0] = (uint8_t)(repackaged[1] >> 24);
+		    encrypterBuffer[1] = (uint8_t)(repackaged[1] >> 16);
+		    encrypterBuffer[2] = (uint8_t)(repackaged[1] >> 8);
+		    encrypterBuffer[3] = (uint8_t)(repackaged[1] >> 0);
+		    encrypterBuffer[4] = (uint8_t)(repackaged[0] >> 24);
+		    encrypterBuffer[5] = (uint8_t)(repackaged[0] >> 16);
+		    encrypterBuffer[6] = (uint8_t)(repackaged[0] >> 8);
+		    encrypterBuffer[7] = (uint8_t)(repackaged[0] >> 0);
+
+		    osMutexAcquire(adcLock0Handle, 0);
+
+		  	for(uint8_t i = 0; i < 4; i++)
+		  	{
+		  		values[i] = adcOutputQueueBuffer0[i];
+		  	}
+
+		    osMutexRelease(adcLock0Handle);
+		    repackaged[0]= values[0] << 16 | values[1];
+		    repackaged[1]= values[2] << 16 | values[3];
+		    encrypt(&repackaged[0],&repackaged[1],k);
+		    encrypterBuffer[0] = (uint8_t)(repackaged[1] >> 24);
+		    encrypterBuffer[1] = (uint8_t)(repackaged[1] >> 16);
+		    encrypterBuffer[2] = (uint8_t)(repackaged[1] >> 8);
+		    encrypterBuffer[3] = (uint8_t)(repackaged[1] >> 0);
+		    encrypterBuffer[4] = (uint8_t)(repackaged[0] >> 24);
+		    encrypterBuffer[5] = (uint8_t)(repackaged[0] >> 16);
+		    encrypterBuffer[6] = (uint8_t)(repackaged[0] >> 8);
+		    encrypterBuffer[7] = (uint8_t)(repackaged[0] >> 0);
+	  }
   /* USER CODE END startEncrypter */
 }
 
@@ -659,9 +716,14 @@ void startSpi(void *argument)
 {
   /* USER CODE BEGIN startSpi */
   /* Infinite loop */
+  LL_SPI_Enable(hspi1.Instance); //make sure that SPI is on
   for(;;)
   {
-    osDelay(1);
+	GPIOA->ODR &= ~(1<<3);
+	for(uint8_t i =0; i <8;i++){
+		LL_SPI_TransmitData8(hspi1.Instance, encrypterBuffer[i]); // Send each byte
+		GPIOA->ODR |= (1<<3);
+	}
   }
   /* USER CODE END startSpi */
 }
