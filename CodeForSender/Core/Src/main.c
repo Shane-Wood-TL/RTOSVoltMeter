@@ -97,20 +97,9 @@ const osThreadAttr_t spiTask_attributes = {
   .stack_size = sizeof(spiTaskBuffer),
   .priority = (osPriority_t) osPriorityNormal,
 };
-/* Definitions for adcOutputQueue0 */
-osMessageQueueId_t adcOutputQueue0Handle;
-uint8_t adcOutputQueueBuffer0[ 16 * sizeof( uint16_t ) ];
-osStaticMessageQDef_t adcOutputQueueControlBlock0;
-const osMessageQueueAttr_t adcOutputQueue0_attributes = {
-  .name = "adcOutputQueue0",
-  .cb_mem = &adcOutputQueueControlBlock0,
-  .cb_size = sizeof(adcOutputQueueControlBlock0),
-  .mq_mem = &adcOutputQueueBuffer0,
-  .mq_size = sizeof(adcOutputQueueBuffer0)
-};
 /* Definitions for enecryptOutput */
 osMessageQueueId_t enecryptOutputHandle;
-uint8_t enecryptOutputBuffer[ 16 * sizeof( uint8_t ) ];
+uint8_t enecryptOutputBuffer[ 8 * sizeof( uint8_t ) ];
 osStaticMessageQDef_t enecryptOutputControlBlock;
 const osMessageQueueAttr_t enecryptOutput_attributes = {
   .name = "enecryptOutput",
@@ -129,6 +118,17 @@ const osMessageQueueAttr_t adcOutputQueue1_attributes = {
   .cb_size = sizeof(adcOutputQueue1ControlBlock),
   .mq_mem = &adcOutputQueue1Buffer,
   .mq_size = sizeof(adcOutputQueue1Buffer)
+};
+/* Definitions for adcOutputQueue0 */
+osMessageQueueId_t adcOutputQueue0Handle;
+uint8_t adcOutputQueueBuffer0[ 16 * sizeof( uint16_t ) ];
+osStaticMessageQDef_t adcOutputQueueControlBlock0;
+const osMessageQueueAttr_t adcOutputQueue0_attributes = {
+  .name = "adcOutputQueue0",
+  .cb_mem = &adcOutputQueueControlBlock0,
+  .cb_size = sizeof(adcOutputQueueControlBlock0),
+  .mq_mem = &adcOutputQueueBuffer0,
+  .mq_size = sizeof(adcOutputQueueBuffer0)
 };
 /* Definitions for adcLock0 */
 osMutexId_t adcLock0Handle;
@@ -296,14 +296,14 @@ int main(void)
   /* USER CODE END RTOS_TIMERS */
 
   /* Create the queue(s) */
-  /* creation of adcOutputQueue0 */
-  adcOutputQueue0Handle = osMessageQueueNew (16, sizeof(uint16_t), &adcOutputQueue0_attributes);
-
   /* creation of enecryptOutput */
-  enecryptOutputHandle = osMessageQueueNew (16, sizeof(uint8_t), &enecryptOutput_attributes);
+  enecryptOutputHandle = osMessageQueueNew (8, sizeof(uint8_t), &enecryptOutput_attributes);
 
   /* creation of adcOutputQueue1 */
   adcOutputQueue1Handle = osMessageQueueNew (16, sizeof(uint16_t), &adcOutputQueue1_attributes);
+
+  /* creation of adcOutputQueue0 */
+  adcOutputQueue0Handle = osMessageQueueNew (16, sizeof(uint16_t), &adcOutputQueue0_attributes);
 
   /* USER CODE BEGIN RTOS_QUEUES */
   /* add queues, ... */
@@ -483,11 +483,11 @@ static void MX_SPI1_Init(void)
   hspi1.Instance = SPI1;
   hspi1.Init.Mode = SPI_MODE_MASTER;
   hspi1.Init.Direction = SPI_DIRECTION_2LINES;
-  hspi1.Init.DataSize = SPI_DATASIZE_4BIT;
+  hspi1.Init.DataSize = SPI_DATASIZE_8BIT;
   hspi1.Init.CLKPolarity = SPI_POLARITY_LOW;
   hspi1.Init.CLKPhase = SPI_PHASE_1EDGE;
   hspi1.Init.NSS = SPI_NSS_SOFT;
-  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_2;
+  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_256;
   hspi1.Init.FirstBit = SPI_FIRSTBIT_MSB;
   hspi1.Init.TIMode = SPI_TIMODE_DISABLE;
   hspi1.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
@@ -556,24 +556,14 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_1|LD3_Pin, GPIO_PIN_RESET);
 
-  /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(LD3_GPIO_Port, LD3_Pin, GPIO_PIN_RESET);
-
-  /*Configure GPIO pin : PA3 */
-  GPIO_InitStruct.Pin = GPIO_PIN_3;
+  /*Configure GPIO pins : PB1 LD3_Pin */
+  GPIO_InitStruct.Pin = GPIO_PIN_1|LD3_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
-
-  /*Configure GPIO pin : LD3_Pin */
-  GPIO_InitStruct.Pin = LD3_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(LD3_GPIO_Port, &GPIO_InitStruct);
+  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
 /* USER CODE BEGIN MX_GPIO_Init_2 */
 /* USER CODE END MX_GPIO_Init_2 */
@@ -655,51 +645,78 @@ void startEncrypter(void *argument)
 {
   /* USER CODE BEGIN startEncrypter */
   /* Infinite loop */
-uint16_t values[4] = {0,0,0,0};
-uint32_t k[4] = {371, 215, 11, 12}; //key
-uint32_t repackaged[2] = {0,0};
+	uint16_t values[4] = {0,0,0,0}; //values from the adc queue
+	const uint32_t k[4] = {371, 215, 11, 12}; //key
+	uint32_t repackaged[2] = {0,0}; //2 32 bit values, packed version of values
+	uint8_t toSend[8]; //encrypted version of repackaged
   for(;;)
   {
+	  	  //lock buffer 1
 		  	osMutexAcquire(adcLock1Handle, osWaitForever);
+
+		  	//get the values from buffer 1
 		  	for(uint8_t i = 0; i < 4; i++)
 		  	{
 		  		values[i] = adcOutputQueue1Buffer[i];
 		  	}
-
+		  	//release buffer 1
 		    osMutexRelease(adcLock1Handle);
 
-
+		    //repack into 2 32 bit values
 		    repackaged[0]= values[0] << 16 | values[1];
 		    repackaged[1]= values[2] << 16 | values[3];
-		    encrypt(&repackaged[0],&repackaged[1],k);
-		    encrypterBuffer[0] = (uint8_t)(repackaged[1] >> 24);
-		    encrypterBuffer[1] = (uint8_t)(repackaged[1] >> 16);
-		    encrypterBuffer[2] = (uint8_t)(repackaged[1] >> 8);
-		    encrypterBuffer[3] = (uint8_t)(repackaged[1] >> 0);
-		    encrypterBuffer[4] = (uint8_t)(repackaged[0] >> 24);
-		    encrypterBuffer[5] = (uint8_t)(repackaged[0] >> 16);
-		    encrypterBuffer[6] = (uint8_t)(repackaged[0] >> 8);
-		    encrypterBuffer[7] = (uint8_t)(repackaged[0] >> 0);
 
+		    //encrypt the data
+		    encrypt(&repackaged[0],&repackaged[1],k);
+
+		    //repack into 8 8 bit values
+		    toSend[0] = (uint8_t)(repackaged[1] >> 24);
+		    toSend[1] = (uint8_t)(repackaged[1] >> 16);
+		    toSend[2] = (uint8_t)(repackaged[1] >> 8);
+		    toSend[3] = (uint8_t)(repackaged[1] >> 0);
+		    toSend[4] = (uint8_t)(repackaged[0] >> 24);
+		    toSend[5] = (uint8_t)(repackaged[0] >> 16);
+		    toSend[6] = (uint8_t)(repackaged[0] >> 8);
+		    toSend[7] = (uint8_t)(repackaged[0] >> 0);
+
+		    //enqueue the data
+		    for(uint8_t i = 0; i < 8; i++){
+		    		   osMessageQueuePut(enecryptOutputHandle,&toSend[i], 0, pdMS_TO_TICKS(10));
+		    }
+
+		    //lock buffer 0
 		    osMutexAcquire(adcLock0Handle, osWaitForever);
 
+		    //get the values from buffer 0
 		  	for(uint8_t i = 0; i < 4; i++)
 		  	{
 		  		values[i] = adcOutputQueueBuffer0[i];
 		  	}
 
+		  	//release buffer 1
 		    osMutexRelease(adcLock0Handle);
+
+		    //repack into 2 32 bit values
 		    repackaged[0]= values[0] << 16 | values[1];
 		    repackaged[1]= values[2] << 16 | values[3];
+
+		    //encrypt the data
 		    encrypt(&repackaged[0],&repackaged[1],k);
-		    encrypterBuffer[0] = (uint8_t)(repackaged[1] >> 24);
-		    encrypterBuffer[1] = (uint8_t)(repackaged[1] >> 16);
-		    encrypterBuffer[2] = (uint8_t)(repackaged[1] >> 8);
-		    encrypterBuffer[3] = (uint8_t)(repackaged[1] >> 0);
-		    encrypterBuffer[4] = (uint8_t)(repackaged[0] >> 24);
-		    encrypterBuffer[5] = (uint8_t)(repackaged[0] >> 16);
-		    encrypterBuffer[6] = (uint8_t)(repackaged[0] >> 8);
-		    encrypterBuffer[7] = (uint8_t)(repackaged[0] >> 0);
+
+		    //repack into 8 8 bit values
+		    toSend[0] = (uint8_t)(repackaged[1] >> 24);
+		    toSend[1] = (uint8_t)(repackaged[1] >> 16);
+		    toSend[2] = (uint8_t)(repackaged[1] >> 8);
+		    toSend[3] = (uint8_t)(repackaged[1] >> 0);
+		    toSend[4] = (uint8_t)(repackaged[0] >> 24);
+		    toSend[5] = (uint8_t)(repackaged[0] >> 16);
+		    toSend[6] = (uint8_t)(repackaged[0] >> 8);
+		    toSend[7] = (uint8_t)(repackaged[0] >> 0);
+
+		    //enqueue the data
+		    for(uint8_t i = 0; i < 8; i++){
+		    	osMessageQueuePut(enecryptOutputHandle,&toSend[i], 0, pdMS_TO_TICKS(10));
+		    }
 	  }
   /* USER CODE END startEncrypter */
 }
@@ -715,15 +732,16 @@ void startSpi(void *argument)
 {
   /* USER CODE BEGIN startSpi */
   /* Infinite loop */
-  LL_SPI_Enable(hspi1.Instance); //make sure that SPI is on
   for(;;)
   {
-	GPIOA->ODR &= ~(1<<3);
-	for(uint8_t i =0; i <8;i++){
-		//LL_SPI_TransmitData8(hspi1.Instance, encrypterBuffer[i]); // Send each byte
-		HAL_SPI_Transmit(&hspi1, encrypterBuffer[i], 8, HAL_MAX_DELAY);
-		GPIOA->ODR |= (1<<3);
-	}
+	    for(uint8_t i =0; i < 8; i++){ //send 8 bytes
+	    	uint8_t toWrite; //temp location for data to write
+	    	osMessageQueueGet(enecryptOutputHandle, &toWrite, NULL, pdMS_TO_TICKS(10)); //get new data
+	    	GPIOB->ODR &= ~(1<<1);//Set CS low
+			HAL_SPI_Transmit(&hspi1, &toWrite, 1, HAL_MAX_DELAY);// Send the data
+			while (HAL_SPI_GetState(&hspi1) != HAL_SPI_STATE_READY) {} //wait till bus is clear
+			GPIOB->ODR |= (1<<1); //set CS high
+	    }
   }
   /* USER CODE END startSpi */
 }
