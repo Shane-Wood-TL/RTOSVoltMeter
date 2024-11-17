@@ -36,6 +36,6 @@ CodeForSender/.settings/
 CodeForSender/Release/
 CodeForSender/Debug/
 
-CodeForReceiver/.settings/
-CodeForReceiver/Release/
-CodeForReceiver/Debug/
+CodeForReceiver/RTOSReceiver/.settings/
+CodeForReceiver/RTOSReceiver/Release/
+CodeForReceiver/RTOSReceiver/Debug/
