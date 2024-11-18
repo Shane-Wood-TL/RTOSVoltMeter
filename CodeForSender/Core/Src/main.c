@@ -110,7 +110,7 @@ const osMessageQueueAttr_t enecryptOutput_attributes = {
 };
 /* Definitions for adcOutputQueue1 */
 osMessageQueueId_t adcOutputQueue1Handle;
-uint8_t adcOutputQueue1Buffer[ 16 * sizeof( uint16_t ) ];
+uint8_t adcOutputQueue1Buffer[ 4 * sizeof( uint16_t ) ];
 osStaticMessageQDef_t adcOutputQueue1ControlBlock;
 const osMessageQueueAttr_t adcOutputQueue1_attributes = {
   .name = "adcOutputQueue1",
@@ -121,7 +121,7 @@ const osMessageQueueAttr_t adcOutputQueue1_attributes = {
 };
 /* Definitions for adcOutputQueue0 */
 osMessageQueueId_t adcOutputQueue0Handle;
-uint8_t adcOutputQueueBuffer0[ 16 * sizeof( uint16_t ) ];
+uint8_t adcOutputQueueBuffer0[ 4 * sizeof( uint16_t ) ];
 osStaticMessageQDef_t adcOutputQueueControlBlock0;
 const osMessageQueueAttr_t adcOutputQueue0_attributes = {
   .name = "adcOutputQueue0",
@@ -300,10 +300,10 @@ int main(void)
   enecryptOutputHandle = osMessageQueueNew (8, sizeof(uint8_t), &enecryptOutput_attributes);
 
   /* creation of adcOutputQueue1 */
-  adcOutputQueue1Handle = osMessageQueueNew (16, sizeof(uint16_t), &adcOutputQueue1_attributes);
+  adcOutputQueue1Handle = osMessageQueueNew (4, sizeof(uint16_t), &adcOutputQueue1_attributes);
 
   /* creation of adcOutputQueue0 */
-  adcOutputQueue0Handle = osMessageQueueNew (16, sizeof(uint16_t), &adcOutputQueue0_attributes);
+  adcOutputQueue0Handle = osMessageQueueNew (4, sizeof(uint16_t), &adcOutputQueue0_attributes);
 
   /* USER CODE BEGIN RTOS_QUEUES */
   /* add queues, ... */
@@ -653,7 +653,6 @@ void startEncrypter(void *argument)
   {
 	  	  //lock buffer 1
 		  	osMutexAcquire(adcLock1Handle, osWaitForever);
-
 		  	//get the values from buffer 1
 		  	for(uint8_t i = 0; i < 4; i++)
 		  	{
@@ -670,23 +669,22 @@ void startEncrypter(void *argument)
 		    encrypt(&repackaged[0],&repackaged[1],k);
 
 		    //repack into 8 8 bit values
-		    toSend[0] = (uint8_t)(repackaged[1] >> 24);
-		    toSend[1] = (uint8_t)(repackaged[1] >> 16);
-		    toSend[2] = (uint8_t)(repackaged[1] >> 8);
-		    toSend[3] = (uint8_t)(repackaged[1] >> 0);
-		    toSend[4] = (uint8_t)(repackaged[0] >> 24);
-		    toSend[5] = (uint8_t)(repackaged[0] >> 16);
-		    toSend[6] = (uint8_t)(repackaged[0] >> 8);
-		    toSend[7] = (uint8_t)(repackaged[0] >> 0);
+		    toSend[0] = (uint8_t)(repackaged[0] >> 24);
+		    toSend[1] = (uint8_t)(repackaged[0] >> 16);
+		    toSend[2] = (uint8_t)(repackaged[0] >> 8);
+		    toSend[3] = (uint8_t)(repackaged[0] >> 0);
+		    toSend[4] = (uint8_t)(repackaged[1] >> 24);
+		    toSend[5] = (uint8_t)(repackaged[1] >> 16);
+		    toSend[6] = (uint8_t)(repackaged[1] >> 8);
+		    toSend[7] = (uint8_t)(repackaged[1] >> 0);
 
 		    //enqueue the data
+
 		    for(uint8_t i = 0; i < 8; i++){
 		    		   osMessageQueuePut(enecryptOutputHandle,&toSend[i], 0, pdMS_TO_TICKS(10));
 		    }
-
 		    //lock buffer 0
 		    osMutexAcquire(adcLock0Handle, osWaitForever);
-
 		    //get the values from buffer 0
 		  	for(uint8_t i = 0; i < 4; i++)
 		  	{
@@ -704,14 +702,14 @@ void startEncrypter(void *argument)
 		    encrypt(&repackaged[0],&repackaged[1],k);
 
 		    //repack into 8 8 bit values
-		    toSend[0] = (uint8_t)(repackaged[1] >> 24);
-		    toSend[1] = (uint8_t)(repackaged[1] >> 16);
-		    toSend[2] = (uint8_t)(repackaged[1] >> 8);
-		    toSend[3] = (uint8_t)(repackaged[1] >> 0);
-		    toSend[4] = (uint8_t)(repackaged[0] >> 24);
-		    toSend[5] = (uint8_t)(repackaged[0] >> 16);
-		    toSend[6] = (uint8_t)(repackaged[0] >> 8);
-		    toSend[7] = (uint8_t)(repackaged[0] >> 0);
+		    toSend[0] = (uint8_t)(repackaged[0] >> 24);
+		    toSend[1] = (uint8_t)(repackaged[0] >> 16);
+		    toSend[2] = (uint8_t)(repackaged[0] >> 8);
+		    toSend[3] = (uint8_t)(repackaged[0] >> 0);
+		    toSend[4] = (uint8_t)(repackaged[1] >> 24);
+		    toSend[5] = (uint8_t)(repackaged[1] >> 16);
+		    toSend[6] = (uint8_t)(repackaged[1] >> 8);
+		    toSend[7] = (uint8_t)(repackaged[1] >> 0);
 
 		    //enqueue the data
 		    for(uint8_t i = 0; i < 8; i++){
@@ -732,16 +730,19 @@ void startSpi(void *argument)
 {
   /* USER CODE BEGIN startSpi */
   /* Infinite loop */
+	uint8_t toWrite; //temp location for data to write
   for(;;)
   {
 	    for(uint8_t i =0; i < 8; i++){ //send 8 bytes
-	    	uint8_t toWrite; //temp location for data to write
 	    	osMessageQueueGet(enecryptOutputHandle, &toWrite, NULL, pdMS_TO_TICKS(10)); //get new data
+	    	__disable_irq();
 	    	GPIOB->ODR &= ~(1<<1);//Set CS low
 			HAL_SPI_Transmit(&hspi1, &toWrite, 1, HAL_MAX_DELAY);// Send the data
-			while (HAL_SPI_GetState(&hspi1) != HAL_SPI_STATE_READY) {} //wait till bus is clear
-			GPIOB->ODR |= (1<<1); //set CS high
+			//while (HAL_SPI_GetState(&hspi1) != HAL_SPI_STATE_READY) {} //wait till bus is clear
 	    }
+	    GPIOB->ODR |= (1<<1); //set CS high
+	    __enable_irq();
+	    osDelay(1);
   }
   /* USER CODE END startSpi */
 }

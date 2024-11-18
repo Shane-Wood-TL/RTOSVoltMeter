@@ -9,6 +9,7 @@ FREERTOS.Queues01=decryptOutput,4,uint16_t,0,Static,decryptOutputBuffer,decryptO
 FREERTOS.Tasks01=defaultTask,24,128,StartDefaultTask,Default,NULL,Dynamic,NULL,NULL;matrixDriver,24,128,startMatrixDriver,Default,NULL,Static,matrixDriverBuffer,matrixDriverControlBlock;spiTask,24,128,startSpi,Default,NULL,Static,spiTaskBuffer,spiTaskControlBlock;decrypter,24,128,StartDecrypter,Default,NULL,Static,decrypterBuffer,decrypterControlBlock
 FREERTOS.configUSE_NEWLIB_REENTRANT=1
 File.Version=6
+GPIO.groupedBy=Group By Peripherals
 KeepUserPlacement=false
 Mcu.CPN=STM32L432KCU3
 Mcu.Family=STM32L4

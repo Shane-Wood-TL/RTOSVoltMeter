@@ -538,7 +538,7 @@ void startMatrixDriver(void *argument)
 			osMessageQueueGet(decryptOutputHandle, &toWrite, NULL, pdMS_TO_TICKS(10)); //get new data
 			sum += toWrite;
 		}
-		sum = sum/4;
+		sum = (uint32_t)(sum/4.0);
 		uint8_t onesPlace = (uint8_t)(sum / 19859.0);
 		uint8_t deciPlace = (uint8_t)((sum-(onesPlace*19859.0)) / 1986.0);
 		for (uint8_t row = 0; row < 5; row++) {
@@ -592,20 +592,27 @@ void startSpi(void *argument)
   for(;;)
   {
 	  osMutexAcquire(spiMutexHandle, osWaitForever);
-	  uint8_t toRead[8]; //temp location for data to read
 
+	  __disable_irq();
+
+	  uint8_t toRead[8] = {0}; //temp location for data to read
 	  if(!((GPIOA->IDR & (1<<12))))
 	  {
+
 		  for(uint8_t i = 0; i < 8; i++)
 		  {
 			  uint8_t rxData = 0;
-			  HAL_SPI_Receive(&hspi1, &rxData, 1, HAL_MAX_DELAY);
+			  HAL_StatusTypeDef state= HAL_SPI_Receive(&hspi1, &rxData, 1, HAL_MAX_DELAY);
+			  if(state != HAL_OK){
+				  break;
+			  }
 			  toRead[i] = rxData;
 		  }
 
 		  spiTaskBuffer[0] |= (toRead[0] << 24) | (toRead[1] << 16) | (toRead[2] << 8) | toRead[3];
 		  spiTaskBuffer[1] |= (toRead[4] << 24) | (toRead[5] << 16) | (toRead[6] << 8) | toRead[7];
 	  }
+	  __enable_irq();
 	  osMutexRelease(spiMutexHandle);
   }
   /* USER CODE END startSpi */
