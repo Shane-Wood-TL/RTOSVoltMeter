@@ -22,7 +22,10 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "stm32l4xx_ll_spi.h"
+#include "stm32l4xx_ll_gpio.h"
+#include "stm32l4xx_ll_bus.h"
+#include "stm32l4xx_ll_utils.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -46,8 +49,6 @@ typedef StaticSemaphore_t osStaticMutexDef_t;
 /* Private variables ---------------------------------------------------------*/
 SPI_HandleTypeDef hspi1;
 
-UART_HandleTypeDef huart2;
-
 /* Definitions for defaultTask */
 osThreadId_t defaultTaskHandle;
 const osThreadAttr_t defaultTask_attributes = {
@@ -69,7 +70,7 @@ const osThreadAttr_t matrixDriver_attributes = {
 };
 /* Definitions for spiTask */
 osThreadId_t spiTaskHandle;
-uint32_t spiTaskBuffer[ 128 ];
+uint32_t spiTaskBuffer[ 256 ];
 osStaticThreadDef_t spiTaskControlBlock;
 const osThreadAttr_t spiTask_attributes = {
   .name = "spiTask",
@@ -136,7 +137,6 @@ const osMutexAttr_t decryptLock_attributes = {
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
-static void MX_USART2_UART_Init(void);
 static void MX_SPI1_Init(void);
 void StartDefaultTask(void *argument);
 void startMatrixDriver(void *argument);
@@ -144,26 +144,23 @@ void startSpi(void *argument);
 void StartDecrypter(void *argument);
 
 /* USER CODE BEGIN PFP */
-void decrypt (uint32_t *v0I,uint32_t *v1I, const uint32_t k[4]);
+void decrypt (int32_t v[2], const uint32_t k[4]);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-void decrypt(uint32_t *v0I, uint32_t *v1I, const uint32_t k[4])
-{
-	uint32_t v0 = *v0I;
-	uint32_t v1 = *v1I;
-	uint32_t sum=0xC6EF3720;
-    uint32_t delta=0x9E3779B9; /* a key schedule constant */
-    uint32_t k0=k[0], k1=k[1], k2=k[2], k3=k[3];  /* cache key */
-    for (uint32_t i=0; i<32; i++)
-    {             /* basic cycle start */
-        v1 -= ((v0<<4) + k2) ^ (v0 + sum) ^ ((v0>>5) + k3);
-        v0 -= ((v1<<4) + k0) ^ (v1 + sum) ^ ((v1>>5) + k1);
-        sum -= delta;
-    }                       /* end cycle */
-    (*v0I)=v0;
-    (*v1I)=v1;
+void decrypt (int32_t v[2], const uint32_t k[4]) {
+  /* set up; "sum" was computed from the value of delta
+  in the "encrypt" function: sum = (delta << 5) & 0xFFFFFFFF */
+  uint32_t v0=v[0], v1=v[1], sum=0xC6EF3720, i;
+  uint32_t delta=0x9E3779B9;           /* a key schedule constant */
+  uint32_t k0=k[0], k1=k[1], k2=k[2], k3=k[3];  /* cache key */
+  for (i=0; i<32; i++) {             /* basic cycle start */
+    v1 -= ((v0<<4) + k2) ^ (v0 + sum) ^ ((v0>>5) + k3);
+    v0 -= ((v1<<4) + k0) ^ (v1 + sum) ^ ((v1>>5) + k1);
+    sum -= delta;
+  }                       /* end cycle */
+  v[0]=v0; v[1]=v1;
 }
 /* USER CODE END 0 */
 
@@ -196,7 +193,6 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
-  MX_USART2_UART_Init();
   MX_SPI1_Init();
   /* USER CODE BEGIN 2 */
 
@@ -348,19 +344,18 @@ static void MX_SPI1_Init(void)
   /* USER CODE END SPI1_Init 1 */
   /* SPI1 parameter configuration*/
   hspi1.Instance = SPI1;
-  hspi1.Init.Mode = SPI_MODE_MASTER;
-  hspi1.Init.Direction = SPI_DIRECTION_2LINES_RXONLY;
+  hspi1.Init.Mode = SPI_MODE_SLAVE;
+  hspi1.Init.Direction = SPI_DIRECTION_2LINES;
   hspi1.Init.DataSize = SPI_DATASIZE_8BIT;
   hspi1.Init.CLKPolarity = SPI_POLARITY_LOW;
   hspi1.Init.CLKPhase = SPI_PHASE_1EDGE;
-  hspi1.Init.NSS = SPI_NSS_SOFT;
-  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_256;
+  hspi1.Init.NSS = SPI_NSS_HARD_INPUT;
   hspi1.Init.FirstBit = SPI_FIRSTBIT_MSB;
   hspi1.Init.TIMode = SPI_TIMODE_DISABLE;
   hspi1.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
   hspi1.Init.CRCPolynomial = 7;
   hspi1.Init.CRCLength = SPI_CRC_LENGTH_DATASIZE;
-  hspi1.Init.NSSPMode = SPI_NSS_PULSE_ENABLE;
+  hspi1.Init.NSSPMode = SPI_NSS_PULSE_DISABLE;
   if (HAL_SPI_Init(&hspi1) != HAL_OK)
   {
     Error_Handler();
@@ -368,41 +363,6 @@ static void MX_SPI1_Init(void)
   /* USER CODE BEGIN SPI1_Init 2 */
 
   /* USER CODE END SPI1_Init 2 */
-
-}
-
-/**
-  * @brief USART2 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_USART2_UART_Init(void)
-{
-
-  /* USER CODE BEGIN USART2_Init 0 */
-
-  /* USER CODE END USART2_Init 0 */
-
-  /* USER CODE BEGIN USART2_Init 1 */
-
-  /* USER CODE END USART2_Init 1 */
-  huart2.Instance = USART2;
-  huart2.Init.BaudRate = 115200;
-  huart2.Init.WordLength = UART_WORDLENGTH_8B;
-  huart2.Init.StopBits = UART_STOPBITS_1;
-  huart2.Init.Parity = UART_PARITY_NONE;
-  huart2.Init.Mode = UART_MODE_TX_RX;
-  huart2.Init.HwFlowCtl = UART_HWCONTROL_NONE;
-  huart2.Init.OverSampling = UART_OVERSAMPLING_16;
-  huart2.Init.OneBitSampling = UART_ONE_BIT_SAMPLE_DISABLE;
-  huart2.AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_NO_INIT;
-  if (HAL_UART_Init(&huart2) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN USART2_Init 2 */
-
-  /* USER CODE END USART2_Init 2 */
 
 }
 
@@ -423,17 +383,25 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3|GPIO_PIN_4|GPIO_PIN_5|GPIO_PIN_7
-                          |GPIO_PIN_8|GPIO_PIN_11, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3|GPIO_PIN_5|GPIO_PIN_8|GPIO_PIN_10
+                          |GPIO_PIN_11|GPIO_PIN_12, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0|GPIO_PIN_1|GPIO_PIN_3|GPIO_PIN_4
                           |GPIO_PIN_5|GPIO_PIN_6|GPIO_PIN_7, GPIO_PIN_RESET);
 
-  /*Configure GPIO pins : PA3 PA4 PA5 PA7
-                           PA8 PA11 */
-  GPIO_InitStruct.Pin = GPIO_PIN_3|GPIO_PIN_4|GPIO_PIN_5|GPIO_PIN_7
-                          |GPIO_PIN_8|GPIO_PIN_11;
+  /*Configure GPIO pin : VCP_TX_Pin */
+  GPIO_InitStruct.Pin = VCP_TX_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
+  GPIO_InitStruct.Alternate = GPIO_AF7_USART2;
+  HAL_GPIO_Init(VCP_TX_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : PA3 PA5 PA8 PA10
+                           PA11 PA12 */
+  GPIO_InitStruct.Pin = GPIO_PIN_3|GPIO_PIN_5|GPIO_PIN_8|GPIO_PIN_10
+                          |GPIO_PIN_11|GPIO_PIN_12;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
@@ -448,11 +416,13 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : PA12 */
-  GPIO_InitStruct.Pin = GPIO_PIN_12;
-  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  /*Configure GPIO pin : VCP_RX_Pin */
+  GPIO_InitStruct.Pin = VCP_RX_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
+  GPIO_InitStruct.Alternate = GPIO_AF3_USART2;
+  HAL_GPIO_Init(VCP_RX_GPIO_Port, &GPIO_InitStruct);
 
 /* USER CODE BEGIN MX_GPIO_Init_2 */
 /* USER CODE END MX_GPIO_Init_2 */
@@ -512,9 +482,9 @@ void startMatrixDriver(void *argument)
 	};
 
 	const struct pin cathodes[5] = {
-			{GPIOA, 4}, //A3
+			{GPIOA, 12}, //A3
 			{GPIOA, 5}, //A4
-			{GPIOA, 7}, //A6
+			{GPIOA, 10}, //D0
 			{GPIOB, 3}, //D13
 			{GPIOB, 4} //D12
 
@@ -535,7 +505,7 @@ void startMatrixDriver(void *argument)
 		uint32_t sum = 0;
 		for(uint8_t value =0; value < 4; value++){
 			uint16_t toWrite;
-			osMessageQueueGet(decryptOutputHandle, &toWrite, NULL, pdMS_TO_TICKS(10)); //get new data
+			osMessageQueueGet(decryptOutputHandle, &toWrite, NULL, pdMS_TO_TICKS(1000)); //get new data
 			sum += toWrite;
 		}
 		sum = (uint32_t)(sum/4.0);
@@ -572,7 +542,6 @@ void startMatrixDriver(void *argument)
 			}
 			osDelay(1); //if there is not some delay here the screen gets angry
 		}
-
 	}
 
   /* USER CODE END startMatrixDriver */
@@ -589,31 +558,45 @@ void startSpi(void *argument)
 {
   /* USER CODE BEGIN startSpi */
   /* Infinite loop */
+  LL_SPI_Enable(hspi1.Instance);
   for(;;)
   {
 	  osMutexAcquire(spiMutexHandle, osWaitForever);
-
 	  __disable_irq();
-
-	  uint8_t toRead[8] = {0}; //temp location for data to read
+	  uint8_t toRead[10] = {0}; //temp location for data to read
+	  uint8_t rxData = 0;
 	  if(!((GPIOA->IDR & (1<<12))))
 	  {
-
-		  for(uint8_t i = 0; i < 8; i++)
+		  for(int8_t i = 0; i < 10;)
 		  {
-			  uint8_t rxData = 0;
-			  HAL_StatusTypeDef state= HAL_SPI_Receive(&hspi1, &rxData, 1, HAL_MAX_DELAY);
-			  if(state != HAL_OK){
-				  break;
+			  while((GPIOA->IDR & (1<<12))) {}
+			  rxData = LL_SPI_ReceiveData8(hspi1.Instance);
+			  while(!LL_SPI_IsActiveFlag_RXNE(hspi1.Instance)){}
+			  if((i==0) && (rxData != 255)){
+				  i=0;
+				  continue;
+			  }
+			  if (i == 9 && rxData != 0)
+			  {
+				  i=0;
+				  continue;
 			  }
 			  toRead[i] = rxData;
-		  }
 
-		  spiTaskBuffer[0] |= (toRead[0] << 24) | (toRead[1] << 16) | (toRead[2] << 8) | toRead[3];
-		  spiTaskBuffer[1] |= (toRead[4] << 24) | (toRead[5] << 16) | (toRead[6] << 8) | toRead[7];
+//			  while(!LL_SPI_IsActiveFlag_RXNE(hspi1.Instance)){}
+//			  LL_SPI_TransmitData8(hspi1.Instance, toRead[i]);
+//			  while (!LL_SPI_IsActiveFlag_RXNE(hspi1.Instance)) {}
+			  i++;
+		  }
+		  uint32_t test[2] = {0};
+		  test[0] |= (toRead[1] << 24) | (toRead[2] << 16) | (toRead[3] << 8) | toRead[4];
+		  test[1] |= (toRead[5] << 24) | (toRead[6] << 16) | (toRead[7] << 8) | toRead[8];
+		  spiTaskBuffer[0] = test[0];
+		  spiTaskBuffer[1] = test[1];
 	  }
 	  __enable_irq();
 	  osMutexRelease(spiMutexHandle);
+	  osDelay(1);
   }
   /* USER CODE END startSpi */
 }
@@ -638,24 +621,50 @@ void StartDecrypter(void *argument)
 	  osMutexAcquire(spiMutexHandle, osWaitForever);
 	  	unPackage[0] = spiTaskBuffer[0];
 	  	unPackage[1] = spiTaskBuffer[1];
+//	  	unPackage[0] = 0x55adfae8;
+//	  	unPackage[1] = 0xecb1fa4;
+
+	    //unPackage[0] = 0xc63341c8;
+	    //unPackage[1] = 0x263397f4;
 
 	  	osMutexRelease(spiMutexHandle);
-
 	      //Decrypting
-	  	decrypt(&unPackage[0], &unPackage[1], k);
+	  	int32_t toDecrypt[2] = {(uint32_t)unPackage[0], (uint32_t)unPackage[1]};
+	  	decrypt(toDecrypt, k);
 
 	  	//unpacking into 4 x 16-bit values
-	  	values[0] = ((unPackage[0] << 16) & byteCapture);
-	  	values[1] = ((unPackage[0]) & byteCapture);
-	  	values[2] = ((unPackage[1] << 16) & byteCapture);
-	  	values[3] = ((unPackage[1]) & byteCapture);
+	  	values[0] = ((toDecrypt[0] << 16) & byteCapture);
+	  	values[1] = ((toDecrypt[0]) & byteCapture);
+	  	values[2] = ((toDecrypt[1] << 16) & byteCapture);
+	  	values[3] = ((toDecrypt[1]) & byteCapture);
 
 	  	for(uint8_t i = 0; i < 4; i++)
 	  	{
-	  		osMessageQueuePut(decryptOutputHandle, &values[i], 0, pdMS_TO_TICKS(10));
+	  		osMessageQueuePut(decryptOutputHandle, &values[i], 0, pdMS_TO_TICKS(1000));
 	  	}
   }
   /* USER CODE END StartDecrypter */
+}
+
+/**
+  * @brief  Period elapsed callback in non blocking mode
+  * @note   This function is called  when TIM6 interrupt took place, inside
+  * HAL_TIM_IRQHandler(). It makes a direct call to HAL_IncTick() to increment
+  * a global variable "uwTick" used as application time base.
+  * @param  htim : TIM handle
+  * @retval None
+  */
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
+{
+  /* USER CODE BEGIN Callback 0 */
+
+  /* USER CODE END Callback 0 */
+  if (htim->Instance == TIM6) {
+    HAL_IncTick();
+  }
+  /* USER CODE BEGIN Callback 1 */
+
+  /* USER CODE END Callback 1 */
 }
 
 /**

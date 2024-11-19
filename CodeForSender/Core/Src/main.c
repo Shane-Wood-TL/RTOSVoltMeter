@@ -487,7 +487,7 @@ static void MX_SPI1_Init(void)
   hspi1.Init.CLKPolarity = SPI_POLARITY_LOW;
   hspi1.Init.CLKPhase = SPI_PHASE_1EDGE;
   hspi1.Init.NSS = SPI_NSS_SOFT;
-  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_256;
+  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_32;
   hspi1.Init.FirstBit = SPI_FIRSTBIT_MSB;
   hspi1.Init.TIMode = SPI_TIMODE_DISABLE;
   hspi1.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
@@ -681,7 +681,7 @@ void startEncrypter(void *argument)
 		    //enqueue the data
 
 		    for(uint8_t i = 0; i < 8; i++){
-		    		   osMessageQueuePut(enecryptOutputHandle,&toSend[i], 0, pdMS_TO_TICKS(10));
+		    		   osMessageQueuePut(enecryptOutputHandle,&toSend[i], 0, pdMS_TO_TICKS(1000));
 		    }
 		    //lock buffer 0
 		    osMutexAcquire(adcLock0Handle, osWaitForever);
@@ -713,7 +713,7 @@ void startEncrypter(void *argument)
 
 		    //enqueue the data
 		    for(uint8_t i = 0; i < 8; i++){
-		    	osMessageQueuePut(enecryptOutputHandle,&toSend[i], 0, pdMS_TO_TICKS(10));
+		    	osMessageQueuePut(enecryptOutputHandle,&toSend[i], 0, pdMS_TO_TICKS(1000));
 		    }
 	  }
   /* USER CODE END startEncrypter */
@@ -730,21 +730,53 @@ void startSpi(void *argument)
 {
   /* USER CODE BEGIN startSpi */
   /* Infinite loop */
-	uint8_t toWrite; //temp location for data to write
+	//temp location for data to write
+	uint8_t currentValue = 0;
+	LL_SPI_Enable(hspi1.Instance);
   for(;;)
   {
-	    for(uint8_t i =0; i < 8; i++){ //send 8 bytes
-	    	osMessageQueueGet(enecryptOutputHandle, &toWrite, NULL, pdMS_TO_TICKS(10)); //get new data
-	    	__disable_irq();
-	    	GPIOB->ODR &= ~(1<<1);//Set CS low
-			HAL_SPI_Transmit(&hspi1, &toWrite, 1, HAL_MAX_DELAY);// Send the data
-			//while (HAL_SPI_GetState(&hspi1) != HAL_SPI_STATE_READY) {} //wait till bus is clear
+	  uint8_t toWrite[10] = {255};
+	    for(uint8_t i =1; i < 9;){ //send 8 bytes
+	    	osMessageQueueGet(enecryptOutputHandle, &currentValue, NULL, pdMS_TO_TICKS(1000)); //get new data
+	    	toWrite[i] = currentValue;
 	    }
-	    GPIOB->ODR |= (1<<1); //set CS high
+	    __disable_irq();
+	    for(uint8_t i=0; i<10; i++){
+				GPIOB->ODR &= ~(1<<1);//Set CS low
+				//HAL_SPI_Transmit(&hspi1, &toWrite[i], 1, 1000);// Send the data
+				while (!LL_SPI_IsActiveFlag_TXE(hspi1.Instance)) {}
+				LL_SPI_TransmitData8(hspi1.Instance, toWrite[i]);
+				while (LL_SPI_IsActiveFlag_BSY(hspi1.Instance)) {}
+				GPIOB->ODR |= (1<<1); //set CS high
+			osDelay(10);
+	    }
 	    __enable_irq();
-	    osDelay(1);
+
+
+
   }
   /* USER CODE END startSpi */
+}
+
+/**
+  * @brief  Period elapsed callback in non blocking mode
+  * @note   This function is called  when TIM6 interrupt took place, inside
+  * HAL_TIM_IRQHandler(). It makes a direct call to HAL_IncTick() to increment
+  * a global variable "uwTick" used as application time base.
+  * @param  htim : TIM handle
+  * @retval None
+  */
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
+{
+  /* USER CODE BEGIN Callback 0 */
+
+  /* USER CODE END Callback 0 */
+  if (htim->Instance == TIM6) {
+    HAL_IncTick();
+  }
+  /* USER CODE BEGIN Callback 1 */
+
+  /* USER CODE END Callback 1 */
 }
 
 /**
