@@ -144,12 +144,12 @@ void startSpi(void *argument);
 void StartDecrypter(void *argument);
 
 /* USER CODE BEGIN PFP */
-void decrypt (int32_t v[2], const uint32_t k[4]);
+void decrypt (uint32_t v[2], const uint32_t k[4]);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-void decrypt (int32_t v[2], const uint32_t k[4]) {
+void decrypt (uint32_t v[2], const uint32_t k[4]) {
   /* set up; "sum" was computed from the value of delta
   in the "encrypt" function: sum = (delta << 5) & 0xFFFFFFFF */
   uint32_t v0=v[0], v1=v[1], sum=0xC6EF3720, i;
@@ -509,8 +509,8 @@ void startMatrixDriver(void *argument)
 			sum += toWrite;
 		}
 		sum = (uint32_t)(sum/4.0);
-		uint8_t onesPlace = (uint8_t)(sum / 19859.0);
-		uint8_t deciPlace = (uint8_t)((sum-(onesPlace*19859.0)) / 1986.0);
+		uint8_t onesPlace = (uint8_t)(sum / 1241.0);
+		uint8_t deciPlace = (uint8_t)((sum-(onesPlace*1241.0)) / 124.1);
 		for (uint8_t row = 0; row < 5; row++) {
 			//replace PORTB = ~cathodes[row];, as the cathodes are on different ports
 			//this display / setup must be somewhat different as the logic is inverted compared to last years
@@ -629,13 +629,14 @@ void StartDecrypter(void *argument)
 
 	  	osMutexRelease(spiMutexHandle);
 	      //Decrypting
-	  	int32_t toDecrypt[2] = {(uint32_t)unPackage[0], (uint32_t)unPackage[1]};
+	  	uint32_t toDecrypt[2] = {(uint32_t)unPackage[0], (uint32_t)unPackage[1]};
 	  	decrypt(toDecrypt, k);
-
+	  	uint32_t test = toDecrypt[0] & byteCapture;
+	  	uint32_t test2 = toDecrypt[1] & byteCapture;
 	  	//unpacking into 4 x 16-bit values
-	  	values[0] = ((toDecrypt[0] << 16) & byteCapture);
+	  	values[0] = ((toDecrypt[0] >> 16) & byteCapture);
 	  	values[1] = ((toDecrypt[0]) & byteCapture);
-	  	values[2] = ((toDecrypt[1] << 16) & byteCapture);
+	  	values[2] = ((toDecrypt[1] >> 16) & byteCapture);
 	  	values[3] = ((toDecrypt[1]) & byteCapture);
 
 	  	for(uint8_t i = 0; i < 4; i++)
