@@ -665,14 +665,15 @@ void startEncrypter(void *argument)
 {
   /* USER CODE BEGIN startEncrypter */
   /* Infinite loop */
+	uint32_t repackaged[2] = {0,0}; //2 32 bit values, packed version of values
 	uint16_t values[8] = {0}; //values from the adc queue
 	const uint32_t k[4] = {371, 215, 11, 12}; //key
 //	uint32_t repackaged[2] = {0,0}; //2 32 bit values, packed version of values
 	uint8_t toSend[8]; //encrypted version of repackaged
   for(;;)
   {
-		uint32_t repackaged[2] = {0,0}; //2 32 bit values, packed version of values
-
+	  	  repackaged[0] = 0;
+	  	  repackaged[1] = 0;
 	  	  //lock buffer 1
 		  	osMutexAcquire(adcLock1Handle, osWaitForever);
 		  	//get the values from buffer 1
@@ -761,9 +762,10 @@ void startSpi(void *argument)
   for(;;)
   {
 	  uint8_t toWrite[10] = {255};
-	    for(uint8_t i =1; i < 9;){ //send 8 bytes
+	    for(uint8_t i =1; i < 9; i++){ //send 8 bytes
 	    	osMessageQueueGet(enecryptOutputHandle, &currentValue, NULL, pdMS_TO_TICKS(1000)); //get new data
 	    	toWrite[i] = currentValue;
+
 	    }
 	    __disable_irq();
 	    for(uint8_t i=0; i<10; i++){
