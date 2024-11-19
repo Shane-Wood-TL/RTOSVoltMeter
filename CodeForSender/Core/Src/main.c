@@ -605,13 +605,26 @@ void StartAdc(void *argument)
   /* Infinite loop */
   for(;;)
   {
+	uint16_t holder1[4] = {0};
+	uint16_t holder2[4] = {0};
+	uint16_t byte = 0x00ff;
+
 	osMutexAcquire(adcLock0Handle, osWaitForever);
 	for(uint8_t i = 0; i < 4; i++)
 	{
 	  (void)HAL_ADC_Start(&hadc1);
 	  HAL_ADC_PollForConversion(&hadc1, osWaitForever);
-	  adcOutputQueueBuffer0[i] = HAL_ADC_GetValue(&hadc1);
+	  holder1[i] = HAL_ADC_GetValue(&hadc1);
 	}
+
+	adcOutputQueueBuffer0[0] = (holder1[0] >> 8) & byte;
+	adcOutputQueueBuffer0[1] = (holder1[0]) & byte;
+	adcOutputQueueBuffer0[2] = (holder1[1] >> 8) & byte;
+	adcOutputQueueBuffer0[3] = (holder1[1]) & byte;
+	adcOutputQueueBuffer0[4] = (holder1[2] >> 8) & byte;
+	adcOutputQueueBuffer0[5] = (holder1[2]) & byte;
+	adcOutputQueueBuffer0[6] = (holder1[3] >> 8) & byte;
+	adcOutputQueueBuffer0[7] = (holder1[3]) & byte;
 
 	osMutexRelease(adcLock0Handle);
 //	osSemaphoreRelease(adcOutputQueue0Handle);
@@ -622,9 +635,16 @@ void StartAdc(void *argument)
 	{
 		(void)HAL_ADC_Start(&hadc1);
 		HAL_ADC_PollForConversion(&hadc1, osWaitForever);
-		adcOutputQueue1Buffer[i] =  HAL_ADC_GetValue(&hadc1);
+		holder2[i] =  HAL_ADC_GetValue(&hadc1);
 	}
-
+	adcOutputQueue1Buffer[0] = (holder2[0] >> 8) & byte;
+	adcOutputQueue1Buffer[1] = (holder2[0]) & byte;
+	adcOutputQueue1Buffer[2] = (holder2[1] >> 8) & byte;
+	adcOutputQueue1Buffer[3] = (holder2[1]) & byte;
+	adcOutputQueue1Buffer[4] = (holder2[2] >> 8) & byte;
+	adcOutputQueue1Buffer[5] = (holder2[2]) & byte;
+	adcOutputQueue1Buffer[6] = (holder2[3] >> 8) & byte;
+	adcOutputQueue1Buffer[7] = (holder2[3]) & byte;
 	osMutexRelease(adcLock1Handle);
 //	osSemaphoreRelease(adcOutputQueue1Handle);
 //	osSemaphoreAcquire(adcOutputQueue0Handle, 0);
@@ -645,16 +665,18 @@ void startEncrypter(void *argument)
 {
   /* USER CODE BEGIN startEncrypter */
   /* Infinite loop */
-	uint16_t values[4] = {0,0,0,0}; //values from the adc queue
+	uint16_t values[8] = {0}; //values from the adc queue
 	const uint32_t k[4] = {371, 215, 11, 12}; //key
-	uint32_t repackaged[2] = {0,0}; //2 32 bit values, packed version of values
+//	uint32_t repackaged[2] = {0,0}; //2 32 bit values, packed version of values
 	uint8_t toSend[8]; //encrypted version of repackaged
   for(;;)
   {
+		uint32_t repackaged[2] = {0,0}; //2 32 bit values, packed version of values
+
 	  	  //lock buffer 1
 		  	osMutexAcquire(adcLock1Handle, osWaitForever);
 		  	//get the values from buffer 1
-		  	for(uint8_t i = 0; i < 4; i++)
+		  	for(uint8_t i = 0; i < 8; i++)
 		  	{
 		  		values[i] = adcOutputQueue1Buffer[i];
 		  	}
@@ -662,8 +684,8 @@ void startEncrypter(void *argument)
 		    osMutexRelease(adcLock1Handle);
 
 		    //repack into 2 32 bit values
-		    repackaged[0]= values[0] << 16 | values[1];
-		    repackaged[1]= values[2] << 16 | values[3];
+		    repackaged[0]= values[0] << 24 | values[1] << 16 | values[2] << 8 | values[3];
+		    repackaged[1]= values[4] << 24 | values[5] << 16 | values[6] << 8 | values[7];
 
 		    //encrypt the data
 		    encrypt(&repackaged[0],&repackaged[1],k);
@@ -686,7 +708,7 @@ void startEncrypter(void *argument)
 		    //lock buffer 0
 		    osMutexAcquire(adcLock0Handle, osWaitForever);
 		    //get the values from buffer 0
-		  	for(uint8_t i = 0; i < 4; i++)
+		  	for(uint8_t i = 0; i < 8; i++)
 		  	{
 		  		values[i] = adcOutputQueueBuffer0[i];
 		  	}
@@ -695,8 +717,11 @@ void startEncrypter(void *argument)
 		    osMutexRelease(adcLock0Handle);
 
 		    //repack into 2 32 bit values
-		    repackaged[0]= values[0] << 16 | values[1];
-		    repackaged[1]= values[2] << 16 | values[3];
+		    repackaged[0] = 0;
+		    repackaged[1] = 0;
+
+		    repackaged[0]= values[0] << 24 | values[1] << 16 | values[2] << 8 | values[3];
+		    repackaged[1]= values[4] << 24 | values[5] << 16 | values[6] << 8 | values[7];
 
 		    //encrypt the data
 		    encrypt(&repackaged[0],&repackaged[1],k);
