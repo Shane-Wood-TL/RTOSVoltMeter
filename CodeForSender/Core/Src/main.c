@@ -48,7 +48,6 @@ typedef StaticSemaphore_t osStaticSemaphoreDef_t;
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
-ADC_HandleTypeDef hadc1;
 
 SPI_HandleTypeDef hspi1;
 
@@ -418,7 +417,40 @@ static void MX_ADC1_Init(void)
 
   /* USER CODE END ADC1_Init 0 */
 
-  ADC_ChannelConfTypeDef sConfig = {0};
+  LL_ADC_InitTypeDef ADC_InitStruct = {0};
+  LL_ADC_REG_InitTypeDef ADC_REG_InitStruct = {0};
+  LL_ADC_CommonInitTypeDef ADC_CommonInitStruct = {0};
+
+  LL_GPIO_InitTypeDef GPIO_InitStruct = {0};
+  RCC_PeriphCLKInitTypeDef PeriphClkInit = {0};
+
+  /** Initializes the peripherals clock
+  */
+  PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_ADC;
+  PeriphClkInit.AdcClockSelection = RCC_ADCCLKSOURCE_PLLSAI1;
+  PeriphClkInit.PLLSAI1.PLLSAI1Source = RCC_PLLSOURCE_MSI;
+  PeriphClkInit.PLLSAI1.PLLSAI1M = 1;
+  PeriphClkInit.PLLSAI1.PLLSAI1N = 16;
+  PeriphClkInit.PLLSAI1.PLLSAI1P = RCC_PLLP_DIV7;
+  PeriphClkInit.PLLSAI1.PLLSAI1Q = RCC_PLLQ_DIV2;
+  PeriphClkInit.PLLSAI1.PLLSAI1R = RCC_PLLR_DIV2;
+  PeriphClkInit.PLLSAI1.PLLSAI1ClockOut = RCC_PLLSAI1_ADC1CLK;
+  if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /* Peripheral clock enable */
+  LL_AHB2_GRP1_EnableClock(LL_AHB2_GRP1_PERIPH_ADC);
+
+  LL_AHB2_GRP1_EnableClock(LL_AHB2_GRP1_PERIPH_GPIOB);
+  /**ADC1 GPIO Configuration
+  PB0   ------> ADC1_IN15
+  */
+  GPIO_InitStruct.Pin = LL_GPIO_PIN_0;
+  GPIO_InitStruct.Mode = LL_GPIO_MODE_ANALOG;
+  GPIO_InitStruct.Pull = LL_GPIO_PULL_NO;
+  LL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
   /* USER CODE BEGIN ADC1_Init 1 */
 
@@ -426,38 +458,44 @@ static void MX_ADC1_Init(void)
 
   /** Common config
   */
-  hadc1.Instance = ADC1;
-  hadc1.Init.ClockPrescaler = ADC_CLOCK_ASYNC_DIV1;
-  hadc1.Init.Resolution = ADC_RESOLUTION_12B;
-  hadc1.Init.DataAlign = ADC_DATAALIGN_RIGHT;
-  hadc1.Init.ScanConvMode = ADC_SCAN_DISABLE;
-  hadc1.Init.EOCSelection = ADC_EOC_SINGLE_CONV;
-  hadc1.Init.LowPowerAutoWait = DISABLE;
-  hadc1.Init.ContinuousConvMode = DISABLE;
-  hadc1.Init.NbrOfConversion = 1;
-  hadc1.Init.DiscontinuousConvMode = DISABLE;
-  hadc1.Init.ExternalTrigConv = ADC_SOFTWARE_START;
-  hadc1.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_NONE;
-  hadc1.Init.DMAContinuousRequests = DISABLE;
-  hadc1.Init.Overrun = ADC_OVR_DATA_PRESERVED;
-  hadc1.Init.OversamplingMode = DISABLE;
-  if (HAL_ADC_Init(&hadc1) != HAL_OK)
+  ADC_InitStruct.Resolution = LL_ADC_RESOLUTION_12B;
+  ADC_InitStruct.DataAlignment = LL_ADC_DATA_ALIGN_RIGHT;
+  ADC_InitStruct.LowPowerMode = LL_ADC_LP_MODE_NONE;
+  LL_ADC_Init(ADC1, &ADC_InitStruct);
+  ADC_REG_InitStruct.TriggerSource = LL_ADC_REG_TRIG_SOFTWARE;
+  ADC_REG_InitStruct.SequencerLength = LL_ADC_REG_SEQ_SCAN_DISABLE;
+  ADC_REG_InitStruct.SequencerDiscont = LL_ADC_REG_SEQ_DISCONT_DISABLE;
+  ADC_REG_InitStruct.ContinuousMode = LL_ADC_REG_CONV_SINGLE;
+  ADC_REG_InitStruct.DMATransfer = LL_ADC_REG_DMA_TRANSFER_NONE;
+  ADC_REG_InitStruct.Overrun = LL_ADC_REG_OVR_DATA_PRESERVED;
+  LL_ADC_REG_Init(ADC1, &ADC_REG_InitStruct);
+  LL_ADC_SetOverSamplingScope(ADC1, LL_ADC_OVS_DISABLE);
+  ADC_CommonInitStruct.CommonClock = LL_ADC_CLOCK_ASYNC_DIV1;
+  LL_ADC_CommonInit(__LL_ADC_COMMON_INSTANCE(ADC1), &ADC_CommonInitStruct);
+  LL_ADC_SetCommonPathInternalCh(__LL_ADC_COMMON_INSTANCE(ADC1), LL_ADC_PATH_INTERNAL_NONE);
+
+  /* Disable ADC deep power down (enabled by default after reset state) */
+  LL_ADC_DisableDeepPowerDown(ADC1);
+  /* Enable ADC internal voltage regulator */
+  LL_ADC_EnableInternalRegulator(ADC1);
+  /* Delay for ADC internal voltage regulator stabilization. */
+  /* Compute number of CPU cycles to wait for, from delay in us. */
+  /* Note: Variable divided by 2 to compensate partially */
+  /* CPU processing cycles (depends on compilation optimization). */
+  /* Note: If system core clock frequency is below 200kHz, wait time */
+  /* is only a few CPU processing cycles. */
+  uint32_t wait_loop_index;
+  wait_loop_index = ((LL_ADC_DELAY_INTERNAL_REGUL_STAB_US * (SystemCoreClock / (100000 * 2))) / 10);
+  while(wait_loop_index != 0)
   {
-    Error_Handler();
+    wait_loop_index--;
   }
 
   /** Configure Regular Channel
   */
-  sConfig.Channel = ADC_CHANNEL_15;
-  sConfig.Rank = ADC_REGULAR_RANK_1;
-  sConfig.SamplingTime = ADC_SAMPLETIME_2CYCLES_5;
-  sConfig.SingleDiff = ADC_SINGLE_ENDED;
-  sConfig.OffsetNumber = ADC_OFFSET_NONE;
-  sConfig.Offset = 0;
-  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
+  LL_ADC_REG_SetSequencerRanks(ADC1, LL_ADC_REG_RANK_1, LL_ADC_CHANNEL_15);
+  LL_ADC_SetChannelSamplingTime(ADC1, LL_ADC_CHANNEL_15, LL_ADC_SAMPLINGTIME_2CYCLES_5);
+  LL_ADC_SetChannelSingleDiff(ADC1, LL_ADC_CHANNEL_15, LL_ADC_SINGLE_ENDED);
   /* USER CODE BEGIN ADC1_Init 2 */
 
   /* USER CODE END ADC1_Init 2 */
@@ -601,6 +639,7 @@ void StartDefaultTask(void *argument)
 void StartAdc(void *argument)
 {
   /* USER CODE BEGIN StartAdc */
+	LL_ADC_Enable(ADC1);
 
   /* Infinite loop */
   for(;;)
@@ -612,9 +651,16 @@ void StartAdc(void *argument)
 	osMutexAcquire(adcLock0Handle, osWaitForever);
 	for(uint8_t i = 0; i < 4; i++)
 	{
-	  (void)HAL_ADC_Start(&hadc1);
-	  HAL_ADC_PollForConversion(&hadc1, osWaitForever);
-	  holder1[i] = HAL_ADC_GetValue(&hadc1);
+//	  (void)HAL_ADC_Start(&hadc1);
+	  LL_ADC_REG_StartConversion(ADC1);
+	  while(LL_ADC_REG_IsConversionOngoing(ADC1)) {}
+
+	  holder1[i] = LL_ADC_REG_ReadConversionData12(ADC1);
+
+	  LL_ADC_REG_StopConversion(ADC1);
+	  while(LL_ADC_REG_IsStopConversionOngoing(ADC1)) {}
+//	  HAL_ADC_PollForConversion(&hadc1, osWaitForever);
+//	  holder1[i] = HAL_ADC_GetValue(&hadc1);
 	}
 
 	adcOutputQueueBuffer0[0] = (holder1[0] >> 8) & byte;
@@ -633,9 +679,16 @@ void StartAdc(void *argument)
 
 	for(uint8_t i = 0; i < 4; i++)
 	{
-		(void)HAL_ADC_Start(&hadc1);
-		HAL_ADC_PollForConversion(&hadc1, osWaitForever);
-		holder2[i] =  HAL_ADC_GetValue(&hadc1);
+//		(void)HAL_ADC_Start(&hadc1);
+//		HAL_ADC_PollForConversion(&hadc1, osWaitForever);
+//		holder2[i] =  HAL_ADC_GetValue(&hadc1);
+		  LL_ADC_REG_StartConversion(ADC1);
+		  while(LL_ADC_REG_IsConversionOngoing(ADC1)) {}
+
+		  holder2[i] = LL_ADC_REG_ReadConversionData12(ADC1);
+
+		  LL_ADC_REG_StopConversion(ADC1);
+		  while(LL_ADC_REG_IsStopConversionOngoing(ADC1)) {}
 	}
 	adcOutputQueue1Buffer[0] = (holder2[0] >> 8) & byte;
 	adcOutputQueue1Buffer[1] = (holder2[0]) & byte;
@@ -767,7 +820,7 @@ void startSpi(void *argument)
 	    	toWrite[i] = currentValue;
 
 	    }
-	    __disable_irq();
+//	    __disable_irq();
 	    for(uint8_t i=0; i<10; i++){
 				GPIOB->ODR &= ~(1<<1);//Set CS low
 				//HAL_SPI_Transmit(&hspi1, &toWrite[i], 1, 1000);// Send the data
@@ -775,9 +828,9 @@ void startSpi(void *argument)
 				LL_SPI_TransmitData8(hspi1.Instance, toWrite[i]);
 				while (LL_SPI_IsActiveFlag_BSY(hspi1.Instance)) {}
 				GPIOB->ODR |= (1<<1); //set CS high
-			osDelay(10);
+//			osDelay(10);
 	    }
-	    __enable_irq();
+//	    __enable_irq();
 
 
 
