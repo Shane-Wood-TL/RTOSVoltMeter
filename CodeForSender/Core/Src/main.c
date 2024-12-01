@@ -23,6 +23,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "stm32l4xx_ll_spi.h"
+#include "stm32l4xx_ll_adc.h"
 #include "stm32l4xx_ll_gpio.h"
 #include "stm32l4xx_ll_bus.h"
 #include "stm32l4xx_ll_utils.h"
@@ -48,8 +49,6 @@ typedef StaticSemaphore_t osStaticSemaphoreDef_t;
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
-
-SPI_HandleTypeDef hspi1;
 
 UART_HandleTypeDef huart2;
 
@@ -514,28 +513,44 @@ static void MX_SPI1_Init(void)
 
   /* USER CODE END SPI1_Init 0 */
 
+  LL_SPI_InitTypeDef SPI_InitStruct = {0};
+
+  LL_GPIO_InitTypeDef GPIO_InitStruct = {0};
+
+  /* Peripheral clock enable */
+  LL_APB2_GRP1_EnableClock(LL_APB2_GRP1_PERIPH_SPI1);
+
+  LL_AHB2_GRP1_EnableClock(LL_AHB2_GRP1_PERIPH_GPIOA);
+  /**SPI1 GPIO Configuration
+  PA1   ------> SPI1_SCK
+  PA6   ------> SPI1_MISO
+  PA7   ------> SPI1_MOSI
+  */
+  GPIO_InitStruct.Pin = LL_GPIO_PIN_1|LL_GPIO_PIN_6|LL_GPIO_PIN_7;
+  GPIO_InitStruct.Mode = LL_GPIO_MODE_ALTERNATE;
+  GPIO_InitStruct.Speed = LL_GPIO_SPEED_FREQ_VERY_HIGH;
+  GPIO_InitStruct.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
+  GPIO_InitStruct.Pull = LL_GPIO_PULL_NO;
+  GPIO_InitStruct.Alternate = LL_GPIO_AF_5;
+  LL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
   /* USER CODE BEGIN SPI1_Init 1 */
 
   /* USER CODE END SPI1_Init 1 */
   /* SPI1 parameter configuration*/
-  hspi1.Instance = SPI1;
-  hspi1.Init.Mode = SPI_MODE_MASTER;
-  hspi1.Init.Direction = SPI_DIRECTION_2LINES;
-  hspi1.Init.DataSize = SPI_DATASIZE_8BIT;
-  hspi1.Init.CLKPolarity = SPI_POLARITY_LOW;
-  hspi1.Init.CLKPhase = SPI_PHASE_1EDGE;
-  hspi1.Init.NSS = SPI_NSS_SOFT;
-  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_32;
-  hspi1.Init.FirstBit = SPI_FIRSTBIT_MSB;
-  hspi1.Init.TIMode = SPI_TIMODE_DISABLE;
-  hspi1.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
-  hspi1.Init.CRCPolynomial = 7;
-  hspi1.Init.CRCLength = SPI_CRC_LENGTH_DATASIZE;
-  hspi1.Init.NSSPMode = SPI_NSS_PULSE_ENABLE;
-  if (HAL_SPI_Init(&hspi1) != HAL_OK)
-  {
-    Error_Handler();
-  }
+  SPI_InitStruct.TransferDirection = LL_SPI_FULL_DUPLEX;
+  SPI_InitStruct.Mode = LL_SPI_MODE_MASTER;
+  SPI_InitStruct.DataWidth = LL_SPI_DATAWIDTH_8BIT;
+  SPI_InitStruct.ClockPolarity = LL_SPI_POLARITY_LOW;
+  SPI_InitStruct.ClockPhase = LL_SPI_PHASE_1EDGE;
+  SPI_InitStruct.NSS = LL_SPI_NSS_SOFT;
+  SPI_InitStruct.BaudRate = LL_SPI_BAUDRATEPRESCALER_DIV32;
+  SPI_InitStruct.BitOrder = LL_SPI_MSB_FIRST;
+  SPI_InitStruct.CRCCalculation = LL_SPI_CRCCALCULATION_DISABLE;
+  SPI_InitStruct.CRCPoly = 7;
+  LL_SPI_Init(SPI1, &SPI_InitStruct);
+  LL_SPI_SetStandard(SPI1, LL_SPI_PROTOCOL_MOTOROLA);
+  LL_SPI_EnableNSSPulseMgt(SPI1);
   /* USER CODE BEGIN SPI1_Init 2 */
 
   /* USER CODE END SPI1_Init 2 */
@@ -584,24 +599,25 @@ static void MX_USART2_UART_Init(void)
   */
 static void MX_GPIO_Init(void)
 {
-  GPIO_InitTypeDef GPIO_InitStruct = {0};
+  LL_GPIO_InitTypeDef GPIO_InitStruct = {0};
 /* USER CODE BEGIN MX_GPIO_Init_1 */
 /* USER CODE END MX_GPIO_Init_1 */
 
   /* GPIO Ports Clock Enable */
-  __HAL_RCC_GPIOC_CLK_ENABLE();
-  __HAL_RCC_GPIOA_CLK_ENABLE();
-  __HAL_RCC_GPIOB_CLK_ENABLE();
+  LL_AHB2_GRP1_EnableClock(LL_AHB2_GRP1_PERIPH_GPIOC);
+  LL_AHB2_GRP1_EnableClock(LL_AHB2_GRP1_PERIPH_GPIOA);
+  LL_AHB2_GRP1_EnableClock(LL_AHB2_GRP1_PERIPH_GPIOB);
 
-  /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_1|LD3_Pin, GPIO_PIN_RESET);
+  /**/
+  LL_GPIO_ResetOutputPin(GPIOB, LL_GPIO_PIN_1|LD3_Pin);
 
-  /*Configure GPIO pins : PB1 LD3_Pin */
-  GPIO_InitStruct.Pin = GPIO_PIN_1|LD3_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+  /**/
+  GPIO_InitStruct.Pin = LL_GPIO_PIN_1|LD3_Pin;
+  GPIO_InitStruct.Mode = LL_GPIO_MODE_OUTPUT;
+  GPIO_InitStruct.Speed = LL_GPIO_SPEED_FREQ_LOW;
+  GPIO_InitStruct.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
+  GPIO_InitStruct.Pull = LL_GPIO_PULL_NO;
+  LL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
 /* USER CODE BEGIN MX_GPIO_Init_2 */
 /* USER CODE END MX_GPIO_Init_2 */
@@ -728,6 +744,8 @@ void startEncrypter(void *argument)
 	  	  repackaged[0] = 0;
 	  	  repackaged[1] = 0;
 	  	  //lock buffer 1
+
+	  	//Claim mutex1
 		  	osMutexAcquire(adcLock1Handle, osWaitForever);
 		  	//get the values from buffer 1
 		  	for(uint8_t i = 0; i < 8; i++)
@@ -738,13 +756,16 @@ void startEncrypter(void *argument)
 		    osMutexRelease(adcLock1Handle);
 
 		    //repack into 2 32 bit values
+		  	//Repackage data from buffer1 into an array of 2 x uint32_t
 		    repackaged[0]= values[0] << 24 | values[1] << 16 | values[2] << 8 | values[3];
 		    repackaged[1]= values[4] << 24 | values[5] << 16 | values[6] << 8 | values[7];
 
 		    //encrypt the data
+		    //Encrypt with keys (371,215,11,12)
 		    encrypt(&repackaged[0],&repackaged[1],k);
 
 		    //repack into 8 8 bit values
+		    //Repackage obscured data as 8 x uint8t_
 		    toSend[0] = (uint8_t)(repackaged[0] >> 24);
 		    toSend[1] = (uint8_t)(repackaged[0] >> 16);
 		    toSend[2] = (uint8_t)(repackaged[0] >> 8);
@@ -760,6 +781,7 @@ void startEncrypter(void *argument)
 		    		   osMessageQueuePut(enecryptOutputHandle,&toSend[i], 0, pdMS_TO_TICKS(1000));
 		    }
 		    //lock buffer 0
+		  	//Claim mutex0
 		    osMutexAcquire(adcLock0Handle, osWaitForever);
 		    //get the values from buffer 0
 		  	for(uint8_t i = 0; i < 8; i++)
@@ -774,13 +796,16 @@ void startEncrypter(void *argument)
 		    repackaged[0] = 0;
 		    repackaged[1] = 0;
 
+		    //Repackage data from buffer1 into an array of 2 x uint32_t
 		    repackaged[0]= values[0] << 24 | values[1] << 16 | values[2] << 8 | values[3];
 		    repackaged[1]= values[4] << 24 | values[5] << 16 | values[6] << 8 | values[7];
 
 		    //encrypt the data
+		    //Encrypt with keys (371,215,11,12)
 		    encrypt(&repackaged[0],&repackaged[1],k);
 
 		    //repack into 8 8 bit values
+		    //Repackage obscured data as 8 x uint8t_
 		    toSend[0] = (uint8_t)(repackaged[0] >> 24);
 		    toSend[1] = (uint8_t)(repackaged[0] >> 16);
 		    toSend[2] = (uint8_t)(repackaged[0] >> 8);
@@ -811,26 +836,32 @@ void startSpi(void *argument)
   /* Infinite loop */
 	//temp location for data to write
 	uint8_t currentValue = 0;
-	LL_SPI_Enable(hspi1.Instance);
+	LL_SPI_Enable(SPI1);
   for(;;)
   {
 	  uint8_t toWrite[10] = {255};
 	    for(uint8_t i =1; i < 9; i++){ //send 8 bytes
 	    	osMessageQueueGet(enecryptOutputHandle, &currentValue, NULL, pdMS_TO_TICKS(1000)); //get new data
 	    	toWrite[i] = currentValue;
-
 	    }
-//	    __disable_irq();
+	    /*
+	    Use HAL to xmit out SPI this way:
+	    GPIO assert low (as ~SS)
+	    Transmit all 8 bytes
+	    GPIO assert ~SS high
+		*/
 	    for(uint8_t i=0; i<10; i++){
 				GPIOB->ODR &= ~(1<<1);//Set CS low
-				//HAL_SPI_Transmit(&hspi1, &toWrite[i], 1, 1000);// Send the data
-				while (!LL_SPI_IsActiveFlag_TXE(hspi1.Instance)) {}
-				LL_SPI_TransmitData8(hspi1.Instance, toWrite[i]);
-				while (LL_SPI_IsActiveFlag_BSY(hspi1.Instance)) {}
+				while (!LL_SPI_IsActiveFlag_TXE(SPI1)) {} //wait for spi transmit buffer to be empty
+				LL_SPI_TransmitData8(SPI1, toWrite[i]); //send the data
+				while (LL_SPI_IsActiveFlag_BSY(SPI1)) {} //wait for spi to no longer be busy
 				GPIOB->ODR |= (1<<1); //set CS high
-//			osDelay(10);
 	    }
-//	    __enable_irq();
+
+	    //change CS for each byte
+	    //send data as 255 x x x x _ x x x x 0
+	    //start byte is 255
+	    //stop byte is 0
 
 
 

@@ -47,7 +47,6 @@ typedef StaticSemaphore_t osStaticMutexDef_t;
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
-SPI_HandleTypeDef hspi1;
 
 /* Definitions for defaultTask */
 osThreadId_t defaultTaskHandle;
@@ -339,27 +338,44 @@ static void MX_SPI1_Init(void)
 
   /* USER CODE END SPI1_Init 0 */
 
+  LL_SPI_InitTypeDef SPI_InitStruct = {0};
+
+  LL_GPIO_InitTypeDef GPIO_InitStruct = {0};
+
+  /* Peripheral clock enable */
+  LL_APB2_GRP1_EnableClock(LL_APB2_GRP1_PERIPH_SPI1);
+
+  LL_AHB2_GRP1_EnableClock(LL_AHB2_GRP1_PERIPH_GPIOA);
+  /**SPI1 GPIO Configuration
+  PA1   ------> SPI1_SCK
+  PA4   ------> SPI1_NSS
+  PA6   ------> SPI1_MISO
+  PA7   ------> SPI1_MOSI
+  */
+  GPIO_InitStruct.Pin = LL_GPIO_PIN_1|LL_GPIO_PIN_4|LL_GPIO_PIN_6|LL_GPIO_PIN_7;
+  GPIO_InitStruct.Mode = LL_GPIO_MODE_ALTERNATE;
+  GPIO_InitStruct.Speed = LL_GPIO_SPEED_FREQ_VERY_HIGH;
+  GPIO_InitStruct.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
+  GPIO_InitStruct.Pull = LL_GPIO_PULL_NO;
+  GPIO_InitStruct.Alternate = LL_GPIO_AF_5;
+  LL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
   /* USER CODE BEGIN SPI1_Init 1 */
 
   /* USER CODE END SPI1_Init 1 */
   /* SPI1 parameter configuration*/
-  hspi1.Instance = SPI1;
-  hspi1.Init.Mode = SPI_MODE_SLAVE;
-  hspi1.Init.Direction = SPI_DIRECTION_2LINES;
-  hspi1.Init.DataSize = SPI_DATASIZE_8BIT;
-  hspi1.Init.CLKPolarity = SPI_POLARITY_LOW;
-  hspi1.Init.CLKPhase = SPI_PHASE_1EDGE;
-  hspi1.Init.NSS = SPI_NSS_HARD_INPUT;
-  hspi1.Init.FirstBit = SPI_FIRSTBIT_MSB;
-  hspi1.Init.TIMode = SPI_TIMODE_DISABLE;
-  hspi1.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
-  hspi1.Init.CRCPolynomial = 7;
-  hspi1.Init.CRCLength = SPI_CRC_LENGTH_DATASIZE;
-  hspi1.Init.NSSPMode = SPI_NSS_PULSE_DISABLE;
-  if (HAL_SPI_Init(&hspi1) != HAL_OK)
-  {
-    Error_Handler();
-  }
+  SPI_InitStruct.TransferDirection = LL_SPI_FULL_DUPLEX;
+  SPI_InitStruct.Mode = LL_SPI_MODE_SLAVE;
+  SPI_InitStruct.DataWidth = LL_SPI_DATAWIDTH_8BIT;
+  SPI_InitStruct.ClockPolarity = LL_SPI_POLARITY_LOW;
+  SPI_InitStruct.ClockPhase = LL_SPI_PHASE_1EDGE;
+  SPI_InitStruct.NSS = LL_SPI_NSS_HARD_INPUT;
+  SPI_InitStruct.BitOrder = LL_SPI_MSB_FIRST;
+  SPI_InitStruct.CRCCalculation = LL_SPI_CRCCALCULATION_DISABLE;
+  SPI_InitStruct.CRCPoly = 7;
+  LL_SPI_Init(SPI1, &SPI_InitStruct);
+  LL_SPI_SetStandard(SPI1, LL_SPI_PROTOCOL_MOTOROLA);
+  LL_SPI_DisableNSSPulseMgt(SPI1);
   /* USER CODE BEGIN SPI1_Init 2 */
 
   /* USER CODE END SPI1_Init 2 */
@@ -373,56 +389,58 @@ static void MX_SPI1_Init(void)
   */
 static void MX_GPIO_Init(void)
 {
-  GPIO_InitTypeDef GPIO_InitStruct = {0};
+  LL_GPIO_InitTypeDef GPIO_InitStruct = {0};
 /* USER CODE BEGIN MX_GPIO_Init_1 */
 /* USER CODE END MX_GPIO_Init_1 */
 
   /* GPIO Ports Clock Enable */
-  __HAL_RCC_GPIOC_CLK_ENABLE();
-  __HAL_RCC_GPIOA_CLK_ENABLE();
-  __HAL_RCC_GPIOB_CLK_ENABLE();
+  LL_AHB2_GRP1_EnableClock(LL_AHB2_GRP1_PERIPH_GPIOC);
+  LL_AHB2_GRP1_EnableClock(LL_AHB2_GRP1_PERIPH_GPIOA);
+  LL_AHB2_GRP1_EnableClock(LL_AHB2_GRP1_PERIPH_GPIOB);
 
-  /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3|GPIO_PIN_5|GPIO_PIN_8|GPIO_PIN_10
-                          |GPIO_PIN_11|GPIO_PIN_12, GPIO_PIN_RESET);
+  /**/
+  LL_GPIO_ResetOutputPin(GPIOA, LL_GPIO_PIN_3|LL_GPIO_PIN_5|LL_GPIO_PIN_8|LL_GPIO_PIN_10
+                          |LL_GPIO_PIN_11|LL_GPIO_PIN_12);
 
-  /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0|GPIO_PIN_1|GPIO_PIN_3|GPIO_PIN_4
-                          |GPIO_PIN_5|GPIO_PIN_6|GPIO_PIN_7, GPIO_PIN_RESET);
+  /**/
+  LL_GPIO_ResetOutputPin(GPIOB, LL_GPIO_PIN_0|LL_GPIO_PIN_1|LL_GPIO_PIN_3|LL_GPIO_PIN_4
+                          |LL_GPIO_PIN_5|LL_GPIO_PIN_6|LL_GPIO_PIN_7);
 
-  /*Configure GPIO pin : VCP_TX_Pin */
+  /**/
   GPIO_InitStruct.Pin = VCP_TX_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
-  GPIO_InitStruct.Alternate = GPIO_AF7_USART2;
-  HAL_GPIO_Init(VCP_TX_GPIO_Port, &GPIO_InitStruct);
+  GPIO_InitStruct.Mode = LL_GPIO_MODE_ALTERNATE;
+  GPIO_InitStruct.Speed = LL_GPIO_SPEED_FREQ_VERY_HIGH;
+  GPIO_InitStruct.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
+  GPIO_InitStruct.Pull = LL_GPIO_PULL_NO;
+  GPIO_InitStruct.Alternate = LL_GPIO_AF_7;
+  LL_GPIO_Init(VCP_TX_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : PA3 PA5 PA8 PA10
-                           PA11 PA12 */
-  GPIO_InitStruct.Pin = GPIO_PIN_3|GPIO_PIN_5|GPIO_PIN_8|GPIO_PIN_10
-                          |GPIO_PIN_11|GPIO_PIN_12;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+  /**/
+  GPIO_InitStruct.Pin = LL_GPIO_PIN_3|LL_GPIO_PIN_5|LL_GPIO_PIN_8|LL_GPIO_PIN_10
+                          |LL_GPIO_PIN_11|LL_GPIO_PIN_12;
+  GPIO_InitStruct.Mode = LL_GPIO_MODE_OUTPUT;
+  GPIO_InitStruct.Speed = LL_GPIO_SPEED_FREQ_LOW;
+  GPIO_InitStruct.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
+  GPIO_InitStruct.Pull = LL_GPIO_PULL_NO;
+  LL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : PB0 PB1 PB3 PB4
-                           PB5 PB6 PB7 */
-  GPIO_InitStruct.Pin = GPIO_PIN_0|GPIO_PIN_1|GPIO_PIN_3|GPIO_PIN_4
-                          |GPIO_PIN_5|GPIO_PIN_6|GPIO_PIN_7;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+  /**/
+  GPIO_InitStruct.Pin = LL_GPIO_PIN_0|LL_GPIO_PIN_1|LL_GPIO_PIN_3|LL_GPIO_PIN_4
+                          |LL_GPIO_PIN_5|LL_GPIO_PIN_6|LL_GPIO_PIN_7;
+  GPIO_InitStruct.Mode = LL_GPIO_MODE_OUTPUT;
+  GPIO_InitStruct.Speed = LL_GPIO_SPEED_FREQ_LOW;
+  GPIO_InitStruct.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
+  GPIO_InitStruct.Pull = LL_GPIO_PULL_NO;
+  LL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : VCP_RX_Pin */
+  /**/
   GPIO_InitStruct.Pin = VCP_RX_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
-  GPIO_InitStruct.Alternate = GPIO_AF3_USART2;
-  HAL_GPIO_Init(VCP_RX_GPIO_Port, &GPIO_InitStruct);
+  GPIO_InitStruct.Mode = LL_GPIO_MODE_ALTERNATE;
+  GPIO_InitStruct.Speed = LL_GPIO_SPEED_FREQ_VERY_HIGH;
+  GPIO_InitStruct.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
+  GPIO_InitStruct.Pull = LL_GPIO_PULL_NO;
+  GPIO_InitStruct.Alternate = LL_GPIO_AF_3;
+  LL_GPIO_Init(VCP_RX_GPIO_Port, &GPIO_InitStruct);
 
 /* USER CODE BEGIN MX_GPIO_Init_2 */
 /* USER CODE END MX_GPIO_Init_2 */
@@ -463,6 +481,7 @@ void startMatrixDriver(void *argument)
 	/* Infinite loop */
 
 	//pixel data for 0-7 for rows 0-4
+	//Make your own font
 	const int8_t allDigits[10][5] = {
 			{0x07, 0x05, 0x05, 0x05, 0x07},
 			{0x02, 0x03, 0x02, 0x02, 0x07},
@@ -481,6 +500,7 @@ void startMatrixDriver(void *argument)
 		uint8_t number;
 	};
 
+	//display pin setups
 	const struct pin cathodes[5] = {
 			{GPIOA, 12}, //A3
 			{GPIOA, 5}, //A4
@@ -499,38 +519,40 @@ void startMatrixDriver(void *argument)
 			{GPIOA, 11}, //D10
 			{GPIOB, 5} //D11
 	};
+
 	for(;;)
 	{
-
 		uint32_t sum = 0;
+		//dequeue uint16_t values
 		for(uint8_t value =0; value < 4; value++){
 			uint16_t toWrite;
-			osMessageQueueGet(decryptOutputHandle, &toWrite, NULL, pdMS_TO_TICKS(1000)); //get new data
+			osMessageQueueGet(decryptOutputHandle, &toWrite, NULL, pdMS_TO_TICKS(500)); //get new data
 			sum += toWrite;
 		}
+		//average them
 		sum = (uint32_t)(sum/4.0);
+
+		//Convert to volts and decivolts - ignore centivolts, etc.
 		uint8_t onesPlace = (uint8_t)(sum / 1241.0);
 		uint8_t deciPlace = (uint8_t)((sum-(onesPlace*1241.0)) / 124.1);
+
+		//Display digits on 6x5 pixel display
 		for (uint8_t row = 0; row < 5; row++) {
 			//replace PORTB = ~cathodes[row];, as the cathodes are on different ports
 			//this display / setup must be somewhat different as the logic is inverted compared to last years
 			//code; not sure, but the other part is inverted as well (diodes internal in the display are likely reversed
 			//compared to the model used last year)
 			for (uint8_t i = 0; i < 5; i++) {
-				if (i == row){
-					cathodes[i].port->ODR |= (1 << cathodes[i].number); //if this row is being looked at, set the pin
-				}else{
-					cathodes[i].port->ODR &= ~(1 << cathodes[i].number); //else, leave it low
-				}
+				cathodes[i].port->ODR &= ~(1 << cathodes[i].number);
 			}
-
+			cathodes[row].port->ODR |= (1 << cathodes[row].number);
 			//get the value of the row being written to the display for the ones and tens place.
 			uint16_t sum = allDigits[onesPlace][row] + (allDigits[deciPlace][row]<<4);
 
 			//if in the bottom row, draw the dot
-			if(row == 4){
-				sum += 0x08;
-			}
+//			if(row == 4){
+//				sum += 0x08;
+//			}
 
 			// Set the anodes (columns) based on the row data
 			for (uint8_t col = 0; col < 7; col++) {
@@ -540,7 +562,7 @@ void startMatrixDriver(void *argument)
 					anodes[col].port->ODR |= (1 << anodes[col].number);//bring the column high / turn the LED off
 				}
 			}
-			osDelay(1); //if there is not some delay here the screen gets angry
+			osDelay(4); //if there is not some delay here the screen gets angry
 		}
 	}
 
@@ -558,11 +580,10 @@ void startSpi(void *argument)
 {
   /* USER CODE BEGIN startSpi */
   /* Infinite loop */
-  LL_SPI_Enable(hspi1.Instance);
+  LL_SPI_Enable(SPI1);
   for(;;)
   {
 	  osMutexAcquire(spiMutexHandle, osWaitForever);
-	  __disable_irq();
 	  uint8_t toRead[10] = {0}; //temp location for data to read
 	  uint8_t rxData = 0;
 	  if(!((GPIOA->IDR & (1<<12))))
@@ -570,8 +591,8 @@ void startSpi(void *argument)
 		  for(int8_t i = 0; i < 10;)
 		  {
 			  while((GPIOA->IDR & (1<<12))) {}
-			  rxData = LL_SPI_ReceiveData8(hspi1.Instance);
-			  while(!LL_SPI_IsActiveFlag_RXNE(hspi1.Instance)){}
+			  rxData = LL_SPI_ReceiveData8(SPI1);
+			  while(!LL_SPI_IsActiveFlag_RXNE(SPI1)){}
 			  if((i==0) && (rxData != 255)){
 				  i=0;
 				  continue;
@@ -583,9 +604,6 @@ void startSpi(void *argument)
 			  }
 			  toRead[i] = rxData;
 
-//			  while(!LL_SPI_IsActiveFlag_RXNE(hspi1.Instance)){}
-//			  LL_SPI_TransmitData8(hspi1.Instance, toRead[i]);
-//			  while (!LL_SPI_IsActiveFlag_RXNE(hspi1.Instance)) {}
 			  i++;
 		  }
 		  uint32_t test[2] = {0};
@@ -594,7 +612,6 @@ void startSpi(void *argument)
 		  spiTaskBuffer[0] = test[0];
 		  spiTaskBuffer[1] = test[1];
 	  }
-	  __enable_irq();
 	  osMutexRelease(spiMutexHandle);
 	  osDelay(1);
   }
@@ -621,18 +638,13 @@ void StartDecrypter(void *argument)
 	  osMutexAcquire(spiMutexHandle, osWaitForever);
 	  	unPackage[0] = spiTaskBuffer[0];
 	  	unPackage[1] = spiTaskBuffer[1];
-//	  	unPackage[0] = 0x55adfae8;
-//	  	unPackage[1] = 0xecb1fa4;
-
-	    //unPackage[0] = 0xc63341c8;
-	    //unPackage[1] = 0x263397f4;
 
 	  	osMutexRelease(spiMutexHandle);
 	      //Decrypting
 	  	uint32_t toDecrypt[2] = {(uint32_t)unPackage[0], (uint32_t)unPackage[1]};
 	  	decrypt(toDecrypt, k);
-	  	uint32_t test = toDecrypt[0] & byteCapture;
-	  	uint32_t test2 = toDecrypt[1] & byteCapture;
+
+
 	  	//unpacking into 4 x 16-bit values
 	  	values[0] = ((toDecrypt[0] >> 16) & byteCapture);
 	  	values[1] = ((toDecrypt[0]) & byteCapture);
@@ -643,6 +655,7 @@ void StartDecrypter(void *argument)
 	  	{
 	  		osMessageQueuePut(decryptOutputHandle, &values[i], 0, pdMS_TO_TICKS(1000));
 	  	}
+
   }
   /* USER CODE END StartDecrypter */
 }
