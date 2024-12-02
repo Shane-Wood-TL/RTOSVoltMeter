@@ -65,7 +65,7 @@ const osThreadAttr_t matrixDriver_attributes = {
   .cb_size = sizeof(matrixDriverControlBlock),
   .stack_mem = &matrixDriverBuffer[0],
   .stack_size = sizeof(matrixDriverBuffer),
-  .priority = (osPriority_t) osPriorityNormal,
+  .priority = (osPriority_t) osPriorityRealtime,
 };
 /* Definitions for spiTask */
 osThreadId_t spiTaskHandle;
@@ -526,7 +526,7 @@ void startMatrixDriver(void *argument)
 		//dequeue uint16_t values
 		for(uint8_t value =0; value < 4; value++){
 			uint16_t toWrite;
-			osMessageQueueGet(decryptOutputHandle, &toWrite, NULL, pdMS_TO_TICKS(500)); //get new data
+			osMessageQueueGet(decryptOutputHandle, &toWrite, NULL, pdMS_TO_TICKS(1000)); //get new data
 			sum += toWrite;
 		}
 		//average them
@@ -562,7 +562,7 @@ void startMatrixDriver(void *argument)
 					anodes[col].port->ODR |= (1 << anodes[col].number);//bring the column high / turn the LED off
 				}
 			}
-			osDelay(4); //if there is not some delay here the screen gets angry
+			osDelay(3); //if there is not some delay here the screen gets angry
 		}
 	}
 
