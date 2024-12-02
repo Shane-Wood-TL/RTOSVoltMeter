@@ -613,7 +613,7 @@ void startSpi(void *argument)
 		  spiTaskBuffer[1] = test[1];
 	  }
 	  osMutexRelease(spiMutexHandle);
-	  osDelay(1);
+	  osDelay(2);
   }
   /* USER CODE END startSpi */
 }
