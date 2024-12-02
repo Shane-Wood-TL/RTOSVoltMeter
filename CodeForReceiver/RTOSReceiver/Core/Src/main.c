@@ -526,7 +526,7 @@ void startMatrixDriver(void *argument)
 		//dequeue uint16_t values
 		for(uint8_t value =0; value < 4; value++){
 			uint16_t toWrite;
-			osMessageQueueGet(decryptOutputHandle, &toWrite, NULL, pdMS_TO_TICKS(1000)); //get new data
+			(void*)osMessageQueueGet(decryptOutputHandle, &toWrite, NULL, pdMS_TO_TICKS(1000)); //get new data
 			sum += toWrite;
 		}
 		//average them
@@ -580,39 +580,57 @@ void startSpi(void *argument)
 {
   /* USER CODE BEGIN startSpi */
   /* Infinite loop */
+  //Enable SPI 1
   LL_SPI_Enable(SPI1);
   for(;;)
   {
-	  osMutexAcquire(spiMutexHandle, osWaitForever);
+	  //Lock out "StartDecrypter" task while the spi is reading
+	  (void*)osMutexAcquire(spiMutexHandle, osWaitForever);
 	  uint8_t toRead[10] = {0}; //temp location for data to read
 	  uint8_t rxData = 0;
+
+	  //Checking to make sure that the CS pin has went low
 	  if(!((GPIOA->IDR & (1<<12))))
 	  {
+		  //Ensures 10 bytes are read from the spi one at a time
 		  for(int8_t i = 0; i < 10;)
 		  {
+			  //Wait here until CS pin goes low
 			  while((GPIOA->IDR & (1<<12))) {}
+			  //Reading one byte at a time from the spi
 			  rxData = LL_SPI_ReceiveData8(SPI1);
+			  //Wait until the spi finishes reading
 			  while(!LL_SPI_IsActiveFlag_RXNE(SPI1)){}
+
+			  //We send these values at the beginning and end of the 10 bytes sent through the spi
+			  //so that we know we are getting the correct data in the middle
+			  //if i is not equal to 255 at the beginning of the 10 byte reading then start over
 			  if((i==0) && (rxData != 255)){
 				  i=0;
 				  continue;
 			  }
+			  //if i is not equal to 0 at the end of the 10 byte reading then start over
 			  if (i == 9 && rxData != 0)
 			  {
 				  i=0;
 				  continue;
 			  }
+
 			  toRead[i] = rxData;
 
 			  i++;
 		  }
+
+		  //Used to pack 4 of the 8-bit values into 1 32-bit value
 		  uint32_t test[2] = {0};
 		  test[0] |= (toRead[1] << 24) | (toRead[2] << 16) | (toRead[3] << 8) | toRead[4];
 		  test[1] |= (toRead[5] << 24) | (toRead[6] << 16) | (toRead[7] << 8) | toRead[8];
 		  spiTaskBuffer[0] = test[0];
 		  spiTaskBuffer[1] = test[1];
 	  }
-	  osMutexRelease(spiMutexHandle);
+
+	  //Unblock "StartDecrypter" after spi finishes reading
+	  (void*)osMutexRelease(spiMutexHandle);
 	  osDelay(2);
   }
   /* USER CODE END startSpi */
@@ -628,19 +646,25 @@ void startSpi(void *argument)
 void StartDecrypter(void *argument)
 {
   /* USER CODE BEGIN StartDecrypter */
+	//Used to store the data in the spi buffer
 	uint32_t unPackage[2];
 	    uint32_t byteCapture = 0x0000ffff;
+	    //buffer for the decryption algorithm
 		uint16_t values[4] = {0,0,0,0}; //values from the adc queue
 		const uint32_t k[4] = {371, 215, 11, 12}; //key
   /* Infinite loop */
   for(;;)
   {
-	  osMutexAcquire(spiMutexHandle, osWaitForever);
+	  //Blocks the spi task from writing to the spi buffer
+	  (void*)osMutexAcquire(spiMutexHandle, osWaitForever);
+
 	  	unPackage[0] = spiTaskBuffer[0];
 	  	unPackage[1] = spiTaskBuffer[1];
 
-	  	osMutexRelease(spiMutexHandle);
+		  //Unblocks the spi task from writing to the spi buffer
+	  	(void*)osMutexRelease(spiMutexHandle);
 	      //Decrypting
+	  	//Placed the unPackage buffer and cast the values to uint32_t for the decryption algorithm
 	  	uint32_t toDecrypt[2] = {(uint32_t)unPackage[0], (uint32_t)unPackage[1]};
 	  	decrypt(toDecrypt, k);
 
@@ -653,7 +677,8 @@ void StartDecrypter(void *argument)
 
 	  	for(uint8_t i = 0; i < 4; i++)
 	  	{
-	  		osMessageQueuePut(decryptOutputHandle, &values[i], 0, pdMS_TO_TICKS(1000));
+	  		//Packing the data stored into the values buffer in the decryption buffer queue
+	  		(void*)osMessageQueuePut(decryptOutputHandle, &values[i], 0, pdMS_TO_TICKS(1000));
 	  	}
 
   }

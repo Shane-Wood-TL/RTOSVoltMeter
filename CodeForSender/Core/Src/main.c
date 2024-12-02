@@ -655,30 +655,39 @@ void StartDefaultTask(void *argument)
 void StartAdc(void *argument)
 {
   /* USER CODE BEGIN StartAdc */
+	//Enabling ADC 1
 	LL_ADC_Enable(ADC1);
 
   /* Infinite loop */
   for(;;)
   {
+	//Init holders for the ADC readings
 	uint16_t holder1[4] = {0};
 	uint16_t holder2[4] = {0};
+
 	uint16_t byte = 0x00ff;
 
-	osMutexAcquire(adcLock0Handle, osWaitForever);
+	//Lock out buffer0
+	(void*)osMutexAcquire(adcLock0Handle, osWaitForever);
+
 	for(uint8_t i = 0; i < 4; i++)
 	{
-//	  (void)HAL_ADC_Start(&hadc1);
+	  //Start ADC conversion for each reading
 	  LL_ADC_REG_StartConversion(ADC1);
+	  //Wait until the conversion process has started
 	  while(LL_ADC_REG_IsConversionOngoing(ADC1)) {}
 
+	  //Assign the 12 bit value to the "holder" buffer
 	  holder1[i] = LL_ADC_REG_ReadConversionData12(ADC1);
 
+	  //Stop the conversion
 	  LL_ADC_REG_StopConversion(ADC1);
+	  //Wait until the conversion has stopped
 	  while(LL_ADC_REG_IsStopConversionOngoing(ADC1)) {}
-//	  HAL_ADC_PollForConversion(&hadc1, osWaitForever);
-//	  holder1[i] = HAL_ADC_GetValue(&hadc1);
+
 	}
 
+	//breaking up the 4 16-bit values in the holder1 buffer to 8 8-bit values to store into "adcOutputQueueBuffer0"
 	adcOutputQueueBuffer0[0] = (holder1[0] >> 8) & byte;
 	adcOutputQueueBuffer0[1] = (holder1[0]) & byte;
 	adcOutputQueueBuffer0[2] = (holder1[1] >> 8) & byte;
@@ -688,24 +697,29 @@ void StartAdc(void *argument)
 	adcOutputQueueBuffer0[6] = (holder1[3] >> 8) & byte;
 	adcOutputQueueBuffer0[7] = (holder1[3]) & byte;
 
-	osMutexRelease(adcLock0Handle);
-//	osSemaphoreRelease(adcOutputQueue0Handle);
-	osMutexAcquire(adcLock1Handle, osWaitForever);
-//	osSemaphoreAcquire(adcOutputQueue1Handle, 0);
+	//Unlock buffer 0
+	(void*)osMutexRelease(adcLock0Handle);
+
+	//Lock out buffer 1
+	(void*)osMutexAcquire(adcLock1Handle, osWaitForever);
 
 	for(uint8_t i = 0; i < 4; i++)
 	{
-//		(void)HAL_ADC_Start(&hadc1);
-//		HAL_ADC_PollForConversion(&hadc1, osWaitForever);
-//		holder2[i] =  HAL_ADC_GetValue(&hadc1);
+		  //Start ADC conversion for each reading
 		  LL_ADC_REG_StartConversion(ADC1);
+		  //Wait until the conversion process has started
 		  while(LL_ADC_REG_IsConversionOngoing(ADC1)) {}
 
+		  //Assign the 12 bit value to the "holder" buffer
 		  holder2[i] = LL_ADC_REG_ReadConversionData12(ADC1);
 
+		  //Stop the conversion
 		  LL_ADC_REG_StopConversion(ADC1);
+		  //Wait until the conversion has stopped
 		  while(LL_ADC_REG_IsStopConversionOngoing(ADC1)) {}
 	}
+
+	//breaking up the 4 16-bit values in the holder2 buffer to 8 8-bit values to store into "adcOutputQueueBuffer1"
 	adcOutputQueue1Buffer[0] = (holder2[0] >> 8) & byte;
 	adcOutputQueue1Buffer[1] = (holder2[0]) & byte;
 	adcOutputQueue1Buffer[2] = (holder2[1] >> 8) & byte;
@@ -714,9 +728,10 @@ void StartAdc(void *argument)
 	adcOutputQueue1Buffer[5] = (holder2[2]) & byte;
 	adcOutputQueue1Buffer[6] = (holder2[3] >> 8) & byte;
 	adcOutputQueue1Buffer[7] = (holder2[3]) & byte;
-	osMutexRelease(adcLock1Handle);
-//	osSemaphoreRelease(adcOutputQueue1Handle);
-//	osSemaphoreAcquire(adcOutputQueue0Handle, 0);
+
+	//Unlock buffer 1
+	(void*)osMutexRelease(adcLock1Handle);
+
 
 
   }
@@ -746,14 +761,14 @@ void startEncrypter(void *argument)
 	  	  //lock buffer 1
 
 	  	//Claim mutex1
-		  	osMutexAcquire(adcLock1Handle, osWaitForever);
+	  	(void*)osMutexAcquire(adcLock1Handle, osWaitForever);
 		  	//get the values from buffer 1
 		  	for(uint8_t i = 0; i < 8; i++)
 		  	{
 		  		values[i] = adcOutputQueue1Buffer[i];
 		  	}
 		  	//release buffer 1
-		    osMutexRelease(adcLock1Handle);
+		  	(void*)osMutexRelease(adcLock1Handle);
 
 		    //repack into 2 32 bit values
 		  	//Repackage data from buffer1 into an array of 2 x uint32_t
@@ -778,11 +793,11 @@ void startEncrypter(void *argument)
 		    //enqueue the data
 
 		    for(uint8_t i = 0; i < 8; i++){
-		    		   osMessageQueuePut(enecryptOutputHandle,&toSend[i], 0, pdMS_TO_TICKS(1000));
+		    	(void*)osMessageQueuePut(enecryptOutputHandle,&toSend[i], 0, pdMS_TO_TICKS(1000));
 		    }
 		    //lock buffer 0
 		  	//Claim mutex0
-		    osMutexAcquire(adcLock0Handle, osWaitForever);
+		    (void*)osMutexAcquire(adcLock0Handle, osWaitForever);
 		    //get the values from buffer 0
 		  	for(uint8_t i = 0; i < 8; i++)
 		  	{
@@ -790,7 +805,7 @@ void startEncrypter(void *argument)
 		  	}
 
 		  	//release buffer 1
-		    osMutexRelease(adcLock0Handle);
+		  	(void*)osMutexRelease(adcLock0Handle);
 
 		    //repack into 2 32 bit values
 		    repackaged[0] = 0;
@@ -817,7 +832,7 @@ void startEncrypter(void *argument)
 
 		    //enqueue the data
 		    for(uint8_t i = 0; i < 8; i++){
-		    	osMessageQueuePut(enecryptOutputHandle,&toSend[i], 0, pdMS_TO_TICKS(1000));
+		    	(void*)osMessageQueuePut(enecryptOutputHandle,&toSend[i], 0, pdMS_TO_TICKS(1000));
 		    }
 	  }
   /* USER CODE END startEncrypter */
@@ -841,7 +856,7 @@ void startSpi(void *argument)
   {
 	  uint8_t toWrite[10] = {255};
 	    for(uint8_t i =1; i < 9; i++){ //send 8 bytes
-	    	osMessageQueueGet(enecryptOutputHandle, &currentValue, NULL, pdMS_TO_TICKS(1000)); //get new data
+	    	(void*)osMessageQueueGet(enecryptOutputHandle, &currentValue, NULL, pdMS_TO_TICKS(1000)); //get new data
 	    	toWrite[i] = currentValue;
 	    }
 	    /*
