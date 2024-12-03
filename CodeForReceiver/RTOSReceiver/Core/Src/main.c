@@ -530,11 +530,11 @@ void startMatrixDriver(void *argument)
 			sum += toWrite;
 		}
 		//average them
-		sum = (uint32_t)(sum/4.0);
+		sum = (uint32_t)(sum/=4.0);
 
 		//Convert to volts and decivolts - ignore centivolts, etc.
-		uint8_t onesPlace = (uint8_t)(sum / 1241.0);
-		uint8_t deciPlace = (uint8_t)((sum-(onesPlace*1241.0)) / 124.1);
+		uint8_t onesPlace = (sum / 1241);
+		uint8_t deciPlace = (sum%1241) / 124;
 
 		//Display digits on 6x5 pixel display
 		for (uint8_t row = 0; row < 5; row++) {
